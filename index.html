@@ -32,9 +32,10 @@
   .voice{display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--border);
     border-radius:4px;margin-bottom:10px;background:#0c0c0e;}
   .voice:last-child{margin-bottom:0;}
-  .vhead{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding-bottom:8px;}
-  .vname{font-weight:700;font-size:13px;letter-spacing:.02em;flex:1;}
-  .vnote{font-size:11px;font-variant-numeric:tabular-nums;font-weight:600;}
+  .vhead{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:8px;}
+  .vhead input[type=range]{min-width:44px;}
+  .vname{font-weight:700;font-size:13px;letter-spacing:.02em;flex-shrink:0;}
+  .vnote{font-size:11px;font-variant-numeric:tabular-nums;font-weight:600;flex-shrink:0;}
 
   .vrow{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
   .vrow:last-child{margin-bottom:0;}
@@ -45,6 +46,16 @@
   .vsrc{flex:1;min-width:0;font-size:9px;color:var(--muted);white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;}
   .vsrc.loaded{color:#fff;font-weight:600;}
+
+  /* RECORD BUTTON (per-voice color-automation) */
+  .recbtn{flex-shrink:0;padding:6px 10px;background:var(--card);border:1px solid var(--border);
+    color:var(--bright);border-radius:3px;font:inherit;font-size:11px;cursor:pointer;
+    text-transform:uppercase;letter-spacing:.05em;}
+  .recbtn:active{background:#1c1c22;}
+  .recbtn.armed{border-color:#f59e0b;color:#f59e0b;}
+  .recbtn.recording{background:#ef4444;border-color:#ef4444;color:#fff;animation:recpulse 1s infinite;}
+  .recbtn.hasseq{background:#1c1c22;border-color:currentColor;}
+  @keyframes recpulse{0%,100%{opacity:1;}50%{opacity:.5;}}
 
   /* PITCH SWATCH (per-voice color -> note) */
   .swatch{-webkit-appearance:none;appearance:none;width:26px;height:26px;flex-shrink:0;
@@ -120,7 +131,7 @@
     <input type="range" class="sld" id="sBPM" min="40" max="240" step="1" value="120">
 
     <div class="srow"><label>Trigger rate (pulses/beat)</label><span class="sv" id="vRate">2</span></div>
-    <input type="range" class="sld" id="sRate" min="0.5" max="8" step="0.5" value="2">
+    <input type="range" class="sld" id="sRate" min="0.5" max="10" step="0.5" value="2">
 
     <div class="srow"><label>Master gain</label><span class="sv" id="vGain">0.60</span></div>
     <input type="range" class="sld" id="sGain" min="0" max="1" step="0.02" value="0.6">
@@ -138,7 +149,7 @@
 <script>
 const MIDINAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const hueToNote = h => ((Math.round(h/30) % 12) + 12) % 12;
-// MIDI 60 = C4, matching the sampler's "C4" anchor.
+// MIDI 60 = C3, matching the sampler's "C3" anchor.
 const midiToName = m => MIDINAMES[((m%12)+12)%12] + (Math.floor(m/12) - 1);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const $ = id => document.getElementById(id);
@@ -166,11 +177,15 @@ VKEYS.forEach(k=>{
   voiceData[k] = {
     file: null,
     sampler: null,
+    vol: null,                        // per-voice Tone.Gain, created in initAudio()
     interval: 0,                      // semitone offset from this voice's own color-note
     hue: hexHSV(VOICES[k].hex).hue,   // this voice's own pitch color
     hitsPerBar: DEFAULT_HITS[k] || 4, // polyrhythm: hits spread across the shared bar
     skipProb: 0,                      // % chance a scheduled hit is skipped
     _hitSet: null,                    // cached Set of pulse indices this voice fires on
+    recState: 'off',                  // 'off' | 'armed' | 'recording'
+    colorSeq: null,                   // recorded per-pulse hue array, one bar long, once recorded
+    _recBuf: null,                    // in-progress capture buffer while recording
   };
 });
 
@@ -212,6 +227,15 @@ function initAudio(){
   const limiter = new Tone.Limiter(-2);
   master.connect(limiter);
   limiter.toDestination();
+
+  // Per-voice volume: one persistent Gain node per voice, connected to
+  // master. Samplers connect to their own voice's gain instead of master
+  // directly, so reloading a sample never resets the fader.
+  VKEYS.forEach(k=>{
+    voiceData[k].vol = new Tone.Gain(1);
+    voiceData[k].vol.connect(master);
+  });
+
   ready=true;
   log('<b>Engine online.</b> Load samples, set pattern, then ENGAGE.','ok');
 }
@@ -308,7 +332,7 @@ async function loadSample(key, file){
     if (!s.loaded){ try{ s.add('C4', toneBuf); }catch(e){} }
     if (!s.loaded) throw new Error('Tone.Sampler would not accept the buffer');
 
-    s.connect(master);
+    s.connect(v.vol);
     v.sampler = s;
     v.file = file.name;
     const src = $('src-'+key);
@@ -328,9 +352,17 @@ async function loadSample(key, file){
 // NOTE CALCULATION
 // ============================================================
 // Each voice's own hue is its own root; OFFSET fine-tunes from there.
-function noteForVoice(key){
+// idx is the current pulse within the bar -- when a color sequence has
+// been recorded, it takes over from the static swatch at that pulse,
+// except while actively arming/recording (live dragging always wins then).
+function noteForVoice(key, idx){
   const v = voiceData[key];
-  const rootIdx = hueToNote(v.hue);
+  let hue = v.hue;
+  const recording = (v.recState === 'armed' || v.recState === 'recording');
+  if(idx !== undefined && !recording && v.colorSeq && v.colorSeq[idx] != null){
+    hue = v.colorSeq[idx];
+  }
+  const rootIdx = hueToNote(hue);
   const rootMidi = 60 + rootIdx;
   const voiceMidi = rootMidi + v.interval;
   return midiToName(voiceMidi);
@@ -386,13 +418,53 @@ function triggerPulse(idx, time){
     if(!v.sampler || !v.sampler.loaded) return;
     if(!v._hitSet || !v._hitSet.has(idx)) return;               // not this voice's pulse
     if(v.skipProb > 0 && Math.random()*100 < v.skipProb) return; // probability skip
-    const note = noteForVoice(k);
+    const note = noteForVoice(k, idx);
     try{
       v.sampler.triggerAttackRelease(note, '8n', time);
     }catch(e){
       console.error('Trigger failed:', e);
     }
   });
+}
+
+// ============================================================
+// COLOR RECORDING — capture one bar of live swatch moves per voice
+// ============================================================
+function renderRecButton(k){
+  const v = voiceData[k];
+  const btn = $('rec-'+k);
+  if(!btn) return;
+  btn.classList.remove('armed','recording','hasseq');
+  if(v.recState === 'armed'){ btn.classList.add('armed'); btn.textContent = 'ARMED'; }
+  else if(v.recState === 'recording'){ btn.classList.add('recording'); btn.textContent = '\u25CF REC'; }
+  else if(v.colorSeq){ btn.classList.add('hasseq'); btn.textContent = 'SEQ'; }
+  else{ btn.textContent = 'REC'; }
+}
+
+function toggleRecord(k){
+  const v = voiceData[k];
+
+  if(v.recState === 'armed' || v.recState === 'recording'){
+    v.recState = 'off';
+    v._recBuf = null;
+    renderRecButton(k);
+    log(`<b>${VOICES[k].label}</b> recording cancelled.`,'inf');
+    return;
+  }
+  if(v.colorSeq){
+    v.colorSeq = null;
+    renderRecButton(k);
+    log(`<b>${VOICES[k].label}</b> color sequence cleared — back to manual.`,'inf');
+    return;
+  }
+  if(!playing){
+    log('Engage the engine first, then hit REC.','wrn');
+    return;
+  }
+  v.recState = 'armed';
+  v._recBuf = new Array(barLength).fill(null);
+  renderRecButton(k);
+  log(`<b>${VOICES[k].label}</b> armed — recording starts at the next bar. Drag its swatch to draw the sequence.`,'inf');
 }
 
 // ============================================================
@@ -410,16 +482,40 @@ function scheduleLoop(){
     if(scanSpeed > 0){
       VKEYS.forEach(k=>{ voiceData[k].hue = (voiceData[k].hue + scanSpeed) % 360; });
     }
+
+    // Arm -> capture -> finalize, per voice, independently.
+    VKEYS.forEach(k=>{
+      const v = voiceData[k];
+      if(v.recState === 'armed' && idx === 0){
+        v.recState = 'recording';
+        Tone.Draw.schedule(()=>renderRecButton(k), time);
+      }
+      if(v.recState === 'recording'){
+        v._recBuf[idx] = v.hue;
+        if(idx === barLength - 1){
+          v.colorSeq = v._recBuf.slice();
+          v._recBuf = null;
+          v.recState = 'off';
+          Tone.Draw.schedule(()=>renderRecButton(k), time);
+        }
+      }
+    });
+
     triggerPulse(idx, time);
     Tone.Draw.schedule(()=>{
       markPulse(idx);
-      if(scanSpeed > 0){
-        VKEYS.forEach(k=>{
-          $('note-'+k).textContent = noteForVoice(k);
+      VKEYS.forEach(k=>{
+        const v = voiceData[k];
+        $('note-'+k).textContent = noteForVoice(k, idx);
+        // Never overwrite the swatch a user is actively dragging mid-record;
+        // otherwise reflect whatever hue is actually driving this voice.
+        const recording = (v.recState === 'armed' || v.recState === 'recording');
+        if(!recording && (scanSpeed > 0 || v.colorSeq)){
+          const hue = (v.colorSeq && v.colorSeq[idx] != null) ? v.colorSeq[idx] : v.hue;
           const sw = $('swatch-'+k);
-          if(sw) sw.value = hsvHex(voiceData[k].hue);
-        });
-      }
+          if(sw) sw.value = hsvHex(hue);
+        }
+      });
     }, time);
     pulseIndex++;
   }, pulseInterval);
@@ -459,6 +555,11 @@ function stop(){
     if(v.sampler && v.sampler.triggerRelease){
       try{ v.sampler.triggerRelease(); }catch(e){}
     }
+    if(v.recState !== 'off'){
+      v.recState = 'off';
+      v._recBuf = null;
+      renderRecButton(k);
+    }
   });
   $('dot').classList.remove('live');
   $('stxt').textContent = 'IDLE';
@@ -484,15 +585,16 @@ function buildVoiceUI(){
     el.style.borderColor = color;
     el.innerHTML = `
       <div class="vhead">
-        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
-          <input type="color" class="swatch" id="swatch-${k}" value="${v.hex}">
-          <span class="vname" style="color:${color}">${v.label}</span>
-        </div>
+        <input type="color" class="swatch" id="swatch-${k}" value="${v.hex}">
+        <span class="vname" style="color:${color}">${v.label}</span>
+        <input type="range" class="sld" id="vol-${k}" min="0" max="1" step="0.02" value="1" style="color:${color}">
+        <span class="intval" id="volval-${k}" style="color:${color}">100%</span>
         <span class="vnote" id="note-${k}" style="color:${color}">${noteForVoice(k)}</span>
       </div>
       <div class="vrow">
         <button class="loadbtn" id="load-${k}">LOAD</button>
         <span class="vsrc" id="src-${k}">no sample</span>
+        <button class="recbtn" id="rec-${k}" style="color:${color}">REC</button>
       </div>
       <div class="interval-ctrl">
         <label class="intlbl" style="color:${color}">OFFSET</label>
@@ -519,6 +621,14 @@ function buildVoiceUI(){
       $('note-'+k).textContent = noteForVoice(k);
       rebuildPattern();
     });
+
+    $('vol-'+k).addEventListener('input', e=>{
+      const val = parseFloat(e.target.value);
+      $('volval-'+k).textContent = Math.round(val*100)+'%';
+      if(voiceData[k].vol) voiceData[k].vol.gain.rampTo(val, 0.03);
+    });
+
+    $('rec-'+k).addEventListener('click', ()=> toggleRecord(k));
 
     $('load-'+k).addEventListener('click', ()=>{
       // Wake the context inside this click, not after the picker returns —
