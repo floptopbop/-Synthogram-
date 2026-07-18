@@ -1,1641 +1,608 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>AXIOM-OS // SONIC SYNTHESIS</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-  <style>
-    :root {
-      --bg: #121016;
-      --card: #141417;
-      --border: #27272a;
-      --muted: #717E86;
-      --bright: #f4f4f5;
-      --blue: #6492BE;
-      --green: #10b981;
-      --yellow: #ffe600;
-      --pink: #E7C8DD;
-      --orange: #FF987D;
-    }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    html, body {
-      background: var(--bg);
-      font-family: "SFMono-Regular", Consolas, monospace;
-      color: var(--bright);
-      font-size: 10.5px;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      position: fixed;
-    }
-    #app {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-#banner {
-  height: 32px;
-  flex-shrink: 0;
-  background: var(--card);
-  border-bottom: 4px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 10px;
-  z-index: 20;
-  /* ADD THIS LINE FOR SMOOTH I/O: */
-  transition: box-shadow 0.05s ease-out, border-color 0.1s ease-out;
-}
-    .sys-tag {
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      font-size: 9.5px;
-      color: #2D2C2E;
-    }
-    .sys-status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 8.5px;
-      color: var(--muted);
-    }
-    .dot {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--green);
-      flex-shrink: 0;
-      transition: all 0.2s;
-    }
-    .dot.live {
-      background: var(--yellow);
-      box-shadow: 0 0 8px var(--yellow);
-    }
-    #workspace {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>AXIOM-OS // SAMPLE VOICES</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#09090b; --card:#141417; --border:#27272a; --muted:#71717a; --bright:#f4f4f5;
+    --v1:#3b82f6; --v2:#10b981; --v3:#f59e0b; --v4:#ffe600;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--bright);
+    font-family:"Share Tech Mono","SFMono-Regular",Consolas,monospace;
+    font-size:13px;min-height:100vh;-webkit-text-size-adjust:100%;}
+  #app{max-width:540px;margin:0 auto;padding:12px 12px 40px;}
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:6px 2px 12px;border-bottom:1px solid var(--border);margin-bottom:12px;}
+  .sys-tag{font-weight:700;letter-spacing:.08em;font-size:12px;}
+  .sys-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);}
+  .dot{width:6px;height:6px;border-radius:50%;background:#666;transition:all 0.2s;}
+  .dot.live{background:#ff0;box-shadow:0 0 8px #ff0;}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:4px;
+    padding:10px;margin-bottom:10px;}
+  .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+    font-weight:700;margin-bottom:8px;}
 
-    #left {
-      width: 55%;
-      border-right: 4px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      background: #110F10;
-      overflow-y: auto;
-      overflow-x: hidden;
-      -webkit-overflow-scrolling: touch;
-    }
-    .panel {
-      padding: 7px 10px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .lbl {
-      font-size: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.09em;
-      color: var(--muted);
-      font-weight: 700;
-      margin-bottom: 6px;
-      line-height: 1;
-    }
+  /* VOICE CARDS */
+  .voice{display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--border);
+    border-radius:4px;margin-bottom:10px;background:#0c0c0e;}
+  .voice:last-child{margin-bottom:0;}
+  .vhead{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding-bottom:8px;}
+  .vname{font-weight:700;font-size:13px;letter-spacing:.02em;flex:1;}
+  .vnote{font-size:11px;font-variant-numeric:tabular-nums;font-weight:600;}
 
-    /* COMPACT VOICE ROW (no transpose) */
-    .vrow {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 7px;
-    }
-    .vrow:last-child {
-      margin-bottom: 0;
-    }
-    .vtag {
-      flex-shrink: 0;
-      width: 35px;
-      line-height: 1.15;
-    }
-    .vname {
-      font-size: 8px;
-      font-weight: 700;
-      display: block;
-      letter-spacing: 0.02em;
-    }
-    .vsrc {
-      font-size: 6.5px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .ibtn {
-      flex-shrink: 0;
-      width: 16px;
-      padding: 4px 0;
-      text-align: center;
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--green);
-      font: 700 7.5px monospace;
-      border-radius: 2px;
-      cursor: pointer;
-      transition: all 0.12s;
-    }
-    .ibtn:hover {
-      border-color: var(--green);
-      background: #1a1a20;
-    }
-    .vlvl {
-      -webkit-appearance: none;
-      flex: 1;
-      min-width: 0;
-      height: 3px;
-      background: var(--border);
-      border-radius: 2px;
-      cursor: pointer;
-      margin: 0 2px;
-    }
-    .vlvl::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 11px;
-      width: 11px;
-      border-radius: 50%;
-      background: var(--blue);
-      cursor: pointer;
-    }
-    .vv {
-      flex-shrink: 0;
-      width: 26px;
-      text-align: right;
-      font-size: 7.5px;
-      color: var(--blue);
-      font-weight: 700;
-    }
-    .vrow.off {
-      opacity: 0.45;
-    }
-    .vrow.off .ibtn {
-      opacity: 1;
-    }
+  .vrow{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .vrow:last-child{margin-bottom:0;}
+  .loadbtn{flex-shrink:0;padding:6px 10px;background:var(--card);border:1px solid var(--border);
+    color:var(--bright);border-radius:3px;font:inherit;font-size:11px;cursor:pointer;
+    text-transform:uppercase;letter-spacing:.05em;}
+  .loadbtn:active{background:#1c1c22;}
+  .vsrc{flex:1;min-width:0;font-size:9px;color:var(--muted);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .vsrc.loaded{color:#fff;font-weight:600;}
 
-    /* TRANSPOSE PANEL (separate) */
-    .transpose-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .transpose-row:last-child {
-      margin-bottom: 0;
-    }
-    .tlabel {
-      width: 50px;
-      font-size: 10px;
-      color: var(--muted);
-      text-transform: uppercase;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-    .tsld {
-      -webkit-appearance: none;
-      flex: 1;
-      height: 3px;
-      background: var(--border);
-      border-radius: 2px;
-      cursor: pointer;
-      margin: 0 4px;
-    }
-    .tsld::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 12px;
-      width: 12px;
-      border-radius: 50%;
-      background: var(--orange);
-      cursor: pointer;
-    }
-    .tval {
-      flex-shrink: 0;
-      width: 28px;
-      text-align: right;
-      font-size: 10px;
-      color: var(--orange);
-      font-weight: 700;
-    }
+  /* PITCH SWATCH (per-voice color -> note) */
+  .swatch{-webkit-appearance:none;appearance:none;width:26px;height:26px;flex-shrink:0;
+    border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;padding:0;}
+  .swatch::-webkit-color-swatch-wrapper{padding:2px;}
+  .swatch::-webkit-color-swatch{border:none;border-radius:4px;}
 
-    /* SLIDERS PANEL */
-    .srow {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 1px;
-    }
-    .srow label {
-      font-size: 8.5px;
-      color: #c0c0c8;
-    }
-    .sv {
-      font-size: 8.5px;
-      color: var(--blue);
-      font-weight: 700;
-    }
-    .sld {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 3px;
-      background: var(--border);
-      border-radius: 2px;
-      margin: 3px 0 8px;
-      cursor: pointer;
-    }
-    .sld:last-child {
-      margin-bottom: 0;
-    }
-    .sld::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 14px;
-      width: 14px;
-      border-radius: 50%;
-      background: var(--blue);
-      cursor: pointer;
-    }
+  /* INTERVAL / PATTERN ROWS */
+  .interval-ctrl{display:flex;align-items:center;gap:8px;}
+  .intlbl{font-size:9px;color:var(--muted);flex-shrink:0;width:60px;}
+  .intval{font-size:11px;font-weight:600;width:35px;text-align:center;}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:3px;background:var(--border);
+    border-radius:2px;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;border-radius:50%;
+    background:currentColor;}
+  input[type=range]::-moz-range-thumb{height:14px;width:14px;border:none;border-radius:50%;background:currentColor;}
 
-    .btn {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--bright);
-      padding: 6px;
-      border-radius: 3px;
-      cursor: pointer;
-      font: 700 8.5px monospace;
-      text-transform: uppercase;
-      transition: all 0.1s;
-      width: 100%;
-      letter-spacing: 0.03em;
-    }
-    .btn:hover {
-      border-color: var(--blue);
-    }
-    .btn.active {
-      background: var(--blue);
-      border-color: var(--blue);
-      color: #fff;
-    }
-    .btn.engage {
-      font-size: 9px;
-      letter-spacing: 0.08em;
-    }
-    .btn.engage.active {
-      background: #ef4444;
-      border-color: #ef4444;
-    }
-    .brow {
-      display: flex;
-      gap: 5px;
-    }
-    .brow .btn {
-      flex: 1;
-    }
+  /* BAR STRIP */
+  .barstrip{display:flex;gap:2px;margin-top:2px;overflow-x:auto;padding:2px 0 4px;}
+  .barcell{flex:1 0 12px;min-width:12px;height:26px;background:#0c0c0e;border:1px solid var(--border);
+    border-radius:2px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:2px;}
+  .barcell.now{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,.5);}
+  .bardot{width:100%;height:3px;border-radius:1px;flex-shrink:0;}
 
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-    }
-    .chip {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 2px;
-      padding: 2px 5px;
-      font-size: 7.5px;
-      display: flex;
-      gap: 4px;
-      align-items: center;
-    }
-    .chip .k {
-      color: var(--muted);
-    }
-    .chip b {
-      color: var(--blue);
-      font-weight: 700;
-    }
-    .chip.hot b {
-      color: var(--yellow);
-    }
+  /* CONTROLS */
+  .srow{display:flex;justify-content:space-between;align-items:center;margin:8px 0;}
+  .srow label{font-size:10px;color:#a1a1aa;}
+  .sv{font-size:11px;font-weight:700;}
+  .sld{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:var(--border);
+    border-radius:2px;margin:4px 0;}
+  .sld::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;border-radius:50%;
+    background:#3b82f6;}
+  .sld::-moz-range-thumb{height:14px;width:14px;border:none;border-radius:50%;background:#3b82f6;}
 
-    /* RIGHT PANEL (42% width) */
-    #right {
-      width: 42%;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg);
-      overflow: hidden;
-    }
-    #scan-panel {
-      flex: 1;
-      min-height: 0;
-      position: relative;
-      background: #080809;
-      cursor: pointer;
-    }
-    #scan-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    #scan-prompt {
-      position: absolute;
-      inset: 8px;
-      z-index: 5;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      border: 2px dashed var(--blue);
-      border-radius: 3px;
-      font-size: 9px;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      text-align: center;
-      line-height: 1.8;
-      transition: all 0.2s;
-    }
-    #scan-panel.loaded #scan-prompt {
-      display: none;
-    }
-    #scan-panel.drag-over #scan-prompt {
-      border-color: var(--yellow);
-      background: rgba(255, 230, 0, 0.04);
-    }
+  .btnrow{display:flex;gap:7px;}
+  .btn{flex:1;background:var(--card);border:1px solid var(--border);color:var(--bright);
+    padding:9px;border-radius:4px;font:inherit;font-size:11px;text-transform:uppercase;
+    letter-spacing:.05em;cursor:pointer;}
+  .btn:active{background:#1c1c22;}
+  .btn.play{font-weight:700;}
+  .btn.play.on{background:#ef4444;border-color:#ef4444;color:#fff;}
 
-    .sub-panel {
-      flex-shrink: 0;
-      position: relative;
-      border-top: 1px solid var(--border);
-      background: #080809;
-    }
-    .sub-panel canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .sub-panel .lbl {
-      position: absolute;
-      top: 2px;
-      left: 8px;
-      z-index: 10;
-      margin: 0;
-      pointer-events: none;
-      font-size: 8px;
-    }
-    #img-metrics {
-      flex-shrink: 0;
-      border-top: 1px solid var(--border);
-      background: #2D2C2E;
-      padding: 5px 8px 6px;
-      display: none;
-    }
-    #img-metrics.visible { display: block; }
-    #img-metrics .lbl { margin-bottom: 5px; }
-    .met-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 3px;
-    }
-    .met-cell {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 2px;
-      padding: 3px 4px;
-    }
-    .met-k {
-      font-size: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: var(--muted);
-      display: block;
-      margin-bottom: 1px;
-    }
-    .met-v {
-      font-size: 8.5px;
-      font-weight: 700;
-      color: var(--blue);
-    }
-    .met-bar {
-      height: 2px;
-      background: var(--border);
-      margin-top: 3px;
-      border-radius: 1px;
-      overflow: hidden;
-    }
-    .met-fill {
-      height: 100%;
-      border-radius: 1px;
-      transition: width 0.4s ease;
-    }
-    .met-influence {
-      font-size: 6.5px;
-      color: var(--muted);
-      margin-top: 4px;
-      letter-spacing: 0.04em;
-    }
-    .met-influence b { color: var(--yellow); font-weight: 700; }
-    #osc-panel {
-      height: 58px;
-    }
-    #spec-panel {
-      height: 50px;
-    }
-    #dens-panel {
-      height: 44px;
-    }
-    #btnRec.recording {
-      background: var(--pink);
-      border-color: var(--pink);
-      color: #fff;
-    }
-
-    #status {
-      flex-shrink: 0;
-      height: 19px;
-      background: #050507;
-      border-top: 1px solid var(--border);
-      padding: 0 7px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 7.5px;
-      color: #a1a1aa;
-      overflow: hidden;
-      white-space: nowrap;
-    }
-    #status .stag {
-      font-weight: 700;
-      letter-spacing: 0.04em;
-    }
-    #status.inf .stag { color: var(--blue); }
-    #status.wrn .stag { color: #f59e0b; }
-    #status.ok  .stag { color: var(--green); }
-    #status.live .stag { color: var(--yellow); }
-  .ibtn.smpbtn { color: var(--muted); border-color: var(--border); }
-  .ibtn.smpbtn.loaded { color:#0a0a0c; border-color:var(--pink); background:var(--pink);
-    box-shadow:0 0 7px rgba(231,200,221,0.55); }
-  .ibtn.smpbtn.loading { color:var(--yellow); border-color:var(--yellow); opacity:0.7; }
-  .ibtn.smpbtn.loading::after { content:''; }
-  #chord-bar { flex-shrink:0; display:flex; align-items:center; gap:9px; padding:7px 9px;
-    background:#0c0c0e; border-bottom:1px solid var(--border); }
-  #chord-cube { width:46px; height:46px; flex-shrink:0; border-radius:5px; border:1px solid var(--border);
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:20px;
-    color:#000; background:#e11d2a; transition:background 0.15s; }
-  #chord-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
-  #chord-note { font-size:22px; font-weight:700; line-height:1; letter-spacing:.02em; }
-  #chord-sub { font-size:8px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-  </style>
+  #log{font-size:9px;color:#a1a1aa;padding:8px 2px 0;border-top:1px solid var(--border);
+    margin-top:8px;min-height:16px;}
+  #log b{color:#10b981;}
+</style>
 </head>
 <body>
 <div id="app">
-  <div id="banner">
-    <div class="sys-tag">AXIOM-OS // SONIC SYNTHESIS</div>
-    <div class="sys-status">
-      <div class="dot" id="sdot"></div>
-      <span id="stxt">SYS_IDLE</span>
-    </div>
+  <header>
+    <div class="sys-tag">AXIOM-OS // SAMPLE VOICES</div>
+    <div class="sys-status"><span class="dot" id="dot"></span><span id="stxt">IDLE</span></div>
+  </header>
+
+  <!-- VOICE SAMPLES -->
+  <div class="panel">
+    <div class="lbl">Voices · sample · swatch = pitch · pattern per voice</div>
+    <div id="voicesContainer"></div>
   </div>
 
-  <div id="workspace">
-    <!-- LEFT PANEL (58%) -->
-    <div id="left">
+  <!-- BAR -->
+  <div class="panel">
+    <div class="lbl">Bar · shared polyrhythm cycle length</div>
+    <div class="srow"><label>Pulses per bar</label><span class="sv" id="vBarLen">16</span></div>
+    <input type="range" class="sld" id="sBarLen" min="4" max="32" step="1" value="16">
+    <div id="barStrip" class="barstrip"></div>
+  </div>
 
-      <!-- Voice Matrix (compact) -->
-      <div class="panel">
-        <div class="lbl">Voice Matrix · tap SIN to cycle · SMP to load a sound · drag level</div>
-        <div class="vrow" id="vr-bass">
-          <div class="vtag"><span class="vname" style="color:#3b82f6">V1 BASS</span><span class="vsrc" id="src-bass">Root</span></div>
-          <button class="ibtn" id="ib-bass">SIN</button>
-          <button class="ibtn smpbtn" id="smp-bass">SMP</button>
-          <input type="range" class="vlvl" id="vl-bass" min="0" max="2" step="0.05" value="1">
-          <span class="vv" id="vv-bass">1.00</span>
-          <input type="file" id="file-bass" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
-        </div>
-        <div class="vrow" id="vr-pad">
-          <div class="vtag"><span class="vname" style="color:#10b981">V2 PAD</span><span class="vsrc" id="src-pad">Third</span></div>
-          <button class="ibtn" id="ib-pad">SIN</button>
-          <button class="ibtn smpbtn" id="smp-pad">SMP</button>
-          <input type="range" class="vlvl" id="vl-pad" min="0" max="2" step="0.05" value="1">
-          <span class="vv" id="vv-pad">1.00</span>
-          <input type="file" id="file-pad" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
-        </div>
-        <div class="vrow" id="vr-lead">
-          <div class="vtag"><span class="vname" style="color:#f59e0b">V3 LEAD</span><span class="vsrc" id="src-lead">Fifth/7th</span></div>
-          <button class="ibtn" id="ib-lead">SAW</button>
-          <button class="ibtn smpbtn" id="smp-lead">SMP</button>
-          <input type="range" class="vlvl" id="vl-lead" min="0" max="2" step="0.05" value="1">
-          <span class="vv" id="vv-lead">1.00</span>
-          <input type="file" id="file-lead" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
-        </div>
-        <div class="vrow" id="vr-rhythm">
-          <div class="vtag"><span class="vname" style="color:#ffe600">V4 RHYT</span><span class="vsrc" id="src-rhythm">Root puls</span></div>
-          <button class="ibtn" id="ib-rhythm">SQR</button>
-          <button class="ibtn smpbtn" id="smp-rhythm">SMP</button>
-          <input type="range" class="vlvl" id="vl-rhythm" min="0" max="2" step="0.05" value="1">
-          <span class="vv" id="vv-rhythm">1.00</span>
-          <input type="file" id="file-rhythm" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
-        </div>
-      </div>
+  <!-- CONTROLS -->
+  <div class="panel">
+    <div class="lbl">Engine</div>
+    <div class="srow"><label>BPM / Clock rate</label><span class="sv" id="vBPM">120</span></div>
+    <input type="range" class="sld" id="sBPM" min="40" max="240" step="1" value="120">
 
-      <!-- Transpose (separate) -->
-      <div class="panel">
-        <div class="lbl">Voice Transpose · semitone offset</div>
-        <div class="transpose-row">
-          <span class="tlabel">BASS</span>
-          <input type="range" class="tsld" id="tp-bass" min="-24" max="24" step="1" value="0">
-          <span class="tval" id="tv-bass">0</span>
-        </div>
-        <div class="transpose-row">
-          <span class="tlabel">PAD</span>
-          <input type="range" class="tsld" id="tp-pad" min="-24" max="24" step="1" value="0">
-          <span class="tval" id="tv-pad">0</span>
-        </div>
-        <div class="transpose-row">
-          <span class="tlabel">LEAD</span>
-          <input type="range" class="tsld" id="tp-lead" min="-24" max="24" step="1" value="0">
-          <span class="tval" id="tv-lead">0</span>
-        </div>
-        <div class="transpose-row">
-          <span class="tlabel">RHYT</span>
-          <input type="range" class="tsld" id="tp-rhythm" min="-24" max="24" step="1" value="0">
-          <span class="tval" id="tv-rhythm">0</span>
-        </div>
-      </div>
+    <div class="srow"><label>Trigger rate (pulses/beat)</label><span class="sv" id="vRate">2</span></div>
+    <input type="range" class="sld" id="sRate" min="0.5" max="8" step="0.5" value="2">
 
-      <!-- Sonic Core -->
-      <div class="panel">
-        <div class="lbl">Sonic Core</div>
-        <div class="srow"><label>Base Register</label><span class="sv" id="txtFreq">220 Hz</span></div>
-        <input type="range" class="sld" id="sldFreq" min="55" max="440" step="5" value="220">
-        <div class="srow"><label>Master Gain</label><span class="sv" id="txtGain">0.30</span></div>
-        <input type="range" class="sld" id="sldGain" min="0" max="0.85" step="0.05" value="0.3">
-        <div class="srow"><label>Scan Speed</label><span class="sv" id="txtSpeed">1.00x</span></div>
-        <input type="range" class="sld" id="sldSpeed" min="0.05" max="4" step="0.05" value="1.0">
-        <div class="srow"><label>Wheel Rotation</label><span class="sv" id="txtWheel">0°</span></div>
-        <input type="range" class="sld" id="sldWheel" min="0" max="360" step="1" value="0">
-      </div>
+    <div class="srow"><label>Master gain</label><span class="sv" id="vGain">0.60</span></div>
+    <input type="range" class="sld" id="sGain" min="0" max="1" step="0.02" value="0.6">
 
-      <!-- Rhythm Gate -->
-      <div class="panel">
-        <div class="lbl">Rhythm Gate · V4 burst modulation</div>
-        <div class="srow"><label>Base Rate</label><span class="sv" id="txtRate">8.0 Hz</span></div>
-        <input type="range" class="sld" id="sldRate" min="0.5" max="20" step="0.5" value="8">
-        <div class="srow"><label>Edge Depth</label><span class="sv" id="txtDepth">1.00</span></div>
-        <input type="range" class="sld" id="sldDepth" min="0" max="1" step="0.05" value="1">
-      </div>
+    <div class="srow"><label>Scan hue</label><span class="sv" id="vScan">OFF</span></div>
+    <input type="range" class="sld" id="sScan" min="0" max="60" step="1" value="0">
 
-      <!-- Transport & Scan Mode -->
-      <div class="panel">
-        <div class="lbl">Transport</div>
-        <div class="brow" style="margin-bottom:5px;">
-          <button class="btn engage" id="btnEngage">▶ ENGAGE</button>
-          <button class="btn" id="btnReset">↺ RESET</button>
-        </div>
-        <div class="brow" style="margin-bottom:5px;">
-          <button class="btn" id="btnScale">SCALE: AUTO</button>
-          <button class="btn" id="btnRec">● REC</button>
-        </div>
-        <div class="brow">
-          <button class="btn active" id="btnScanV">SCAN V</button>
-          <button class="btn" id="btnScanH">SCAN H</button>
-          <button class="btn" id="btnScanD">DUAL</button>
-        </div>
-      </div>
-
-      <!-- Live Metrics -->
-      <div class="panel">
-        <div class="lbl">Live Metrics</div>
-        <div class="chips">
-          <div class="chip hot"><span class="k">VOX</span><b id="valVox">0</b></div>
-          <div class="chip"><span class="k">LUM</span><b id="valLum">—</b></div>
-          <div class="chip"><span class="k">TEMP</span><b id="valTemp">—</b></div>
-          <div class="chip"><span class="k">EDGE</span><b id="valEdge">—</b></div>
-          <div class="chip"><span class="k">STRG</span><b id="valStrong">—</b></div>
-          <div class="chip"><span class="k">SAT</span><b id="valSat">—</b></div>
-          <div class="chip"><span class="k">CONT</span><b id="valContrast">—</b></div>
-          <div class="chip"><span class="k">SYM</span><b id="valSym">—</b></div>
-          <div class="chip"><span class="k">TON</span><b id="valTon">—</b></div>
-          <div class="chip"><span class="k">POS</span><b id="valPos">—</b></div>
-        </div>
-      </div>
+    <div class="btnrow" style="margin-top:12px;">
+      <button class="btn play" id="btnPlay">▶ ENGAGE</button>
     </div>
-
-    <!-- RIGHT PANEL (42%) -->
-    <div id="right">
-      <div id="chord-bar">
-        <div id="chord-cube">—</div>
-        <div id="chord-info"><span id="chord-note">pick a color</span><span id="chord-sub">root note off the wheel</span></div>
-      </div>
-      <div id="scan-panel">
-        <canvas id="scan-canvas"></canvas>
-        <div id="scan-prompt">
-          DROP IMAGE HERE<br>OR TAP TO LOAD
-          <input type="file" id="fileIn" accept="image/*" hidden>
-        </div>
-      </div>
-      <div id="img-metrics">
-        <div class="lbl">IMAGE GLOBALS · </div>
-        <div class="met-grid">
-          <div class="met-cell">
-            <span class="met-k">BRIGHTNESS</span>
-            <span class="met-v" id="mg-bright">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-bright" style="background:var(--blue);width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">CONTRAST</span>
-            <span class="met-v" id="mg-contrast">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-contrast" style="background:var(--orange);width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">SATURATION</span>
-            <span class="met-v" id="mg-sat">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-sat" style="background:var(--green);width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">EDGE DENS</span>
-            <span class="met-v" id="mg-edge">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-edge" style="background:var(--yellow);width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">WARM/COOL</span>
-            <span class="met-v" id="mg-temp">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-temp" style="background:var(--pink);width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">COMPLEXITY</span>
-            <span class="met-v" id="mg-complex">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-complex" style="background:#a78bfa;width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">DOMINANT HUE</span>
-            <span class="met-v" id="mg-hue">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-hue" style="background:var(--blue);width:0%"></div></div>
-          </div>
-          <div class="met-cell">
-            <span class="met-k">SCALE BIAS</span>
-            <span class="met-v" id="mg-scale">—</span>
-            <div class="met-bar"><div class="met-fill" id="mb-scale" style="background:var(--green);width:0%"></div></div>
-          </div>
-        </div>
-        <div class="met-influence" id="met-influence-txt"></div>
-      </div>
-      <div class="sub-panel" id="osc-panel">
-        <div class="lbl">OSCILLOSCOPE</div>
-        <canvas id="osc-canvas"></canvas>
-      </div>
-      <div class="sub-panel" id="spec-panel">
-        <div class="lbl">SPECTRUM</div>
-        <canvas id="spec-canvas"></canvas>
-      </div>
-      <div class="sub-panel" id="dens-panel">
-        <div class="lbl">EDGE DENSITY MAP</div>
-        <canvas id="dens-canvas"></canvas>
-      </div>
-      <div id="status" class="ok"><span class="stag">[OK]</span><span id="smsg">Engine ready. Load an image.</span></div>
-    </div>
+    <div id="log">Ready. Load samples, set pattern, then ENGAGE.</div>
   </div>
 </div>
 
 <script>
-(function() {
-  // CONSTANTS
-  const SCALES = {
-    MAJOR: [1, 1.125, 1.25, 1.333, 1.5, 1.667, 1.875, 2],
-    MINOR: [1, 1.122, 1.189, 1.335, 1.498, 1.587, 1.782, 2],
-    DISSONANT: [1, 1.067, 1.231, 1.307, 1.535, 1.6, 1.738, 1.909]
+const MIDINAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const hueToNote = h => ((Math.round(h/30) % 12) + 12) % 12;
+// MIDI 60 = C4, matching the sampler's "C4" anchor.
+const midiToName = m => MIDINAMES[((m%12)+12)%12] + (Math.floor(m/12) - 1);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const $ = id => document.getElementById(id);
+
+// VOICE SETUP
+const VOICES = {
+  v1: { label:'VOICE 1', color:'--v1', hex:'#3b82f6' },
+  v2: { label:'VOICE 2', color:'--v2', hex:'#10b981' },
+  v3: { label:'VOICE 3', color:'--v3', hex:'#f59e0b' },
+  v4: { label:'VOICE 4', color:'--v4', hex:'#ffe600' },
+};
+const VKEYS = Object.keys(VOICES);
+// Different hit counts per voice by default -- otherwise every voice would
+// still land on the same pulses even with the polyrhythm engine in place.
+const DEFAULT_HITS = { v1:4, v2:3, v3:5, v4:2 };
+
+let master, ready=false, playing=false;
+let loopHandle=null;
+let bpm=120, pulseRate=2, scanSpeed=0;
+let barLength=16, pulseIndex=0;
+
+// VOICE STATE
+let voiceData = {};
+VKEYS.forEach(k=>{
+  voiceData[k] = {
+    file: null,
+    sampler: null,
+    interval: 0,                      // semitone offset from this voice's own color-note
+    hue: hexHSV(VOICES[k].hex).hue,   // this voice's own pitch color
+    hitsPerBar: DEFAULT_HITS[k] || 4, // polyrhythm: hits spread across the shared bar
+    skipProb: 0,                      // % chance a scheduled hit is skipped
+    _hitSet: null,                    // cached Set of pulse indices this voice fires on
   };
-  const INSTR_TYPES = ['SIN','SAW','SQR','TRI','FAT','NOISE','OFF'];
-  const INSTR_NATIVE = { SIN:'sine', SAW:'sawtooth', SQR:'square', TRI:'triangle', FAT:'fat', NOISE:'noise' };
-  const VKEYS = ['bass','pad','lead','rhythm'];
-  const SOBEL_THRESH = 38, STRONG_MULT = 2.4, RES = 4;
-  // Color wheel = chromatic wheel. Red(hue 0)=C, +30deg per semitone clockwise.
-  const HUE_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+});
 
-  let audioCtx, analyser, masterGain, noiseBuffer;
-  let voices = {}, rhythmNext = 0;
-  let compV = [], compH = [], idxV = 0, idxH = 0;
-  const VLEVEL = { bass:1, pad:1, lead:1, rhythm:1 };
-  const VINSTR  = { bass:'SIN', pad:'SIN', lead:'SAW', rhythm:'SQR' };
-  const VTRANS  = { bass:0, pad:0, lead:0, rhythm:0 };
-  let scanMode = 'V', scaleMode = 'AUTO', baseFreq = 220, speedMul = 1.0;
-  let rhythmRate = 8, rhythmDepth = 1.0, isPlaying = false;
-  let rhythmRateBase = 8;   // untouched user value; auto-apply derives from this, never compounds
-
-  // ---- PITCH WINDOWS -------------------------------------------------------
-  // Synths can roam. Samplers cannot: Tone.Sampler pitch-shifts by playbackRate
-  // from its C4 root, so C1 = 0.125x and C7 = 8x — inaudible or ultrasonic.
-  // Notes are FOLDED by octave into these windows, not clamped, so pitch keeps
-  // moving with the scan instead of pinning to a rail.
-  const SYNTH_RANGE   = { bass:[28,52], pad:[48,72], lead:[55,84], rhythm:[36,60] };
-  const SAMPLER_RANGE = [48,72];   // C3..C5 -> playbackRate 0.5x .. 2.0x
-  const MIN_RETRIG = 0.11;  // seconds; stops 30Hz machine-gunning
-  let bassNext = 0, padNext = 0, bassMin = 0, padMin = 0;
-  let lastBassNote = null, lastPadNote = null;
-  // BASS pulse window: saturation picks the rate, it never stops entirely.
-  const BASS_SLOW = 1.7, BASS_FAST = 0.28, BASS_SAT_FULL = 0.55;
-  const PAD_MAX_HOLD = 2.6;   // pad re-attacks at least this often
-  let loadedImage = null, imgRect = null, lastRoot = 0;
-  let wheelRotation = 0;
-  let bassTriggered = false, padTriggered = false, leadTriggered = false; // per-voice gate state
-  // one Tone engine; each voice holds its own synth + optional sampler
-  let toneStarted = false, samplePulseNext = 0, leadPulseNext = 0;
-  const sampleNote = { bass:'C2', pad:'C4', lead:'C5', rhythm:'C3' }; // current note per voice
-  const heldNote = { bass:null, pad:null, lead:null };                // sustained note per tonal voice
-
-  const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
-  const lerp = (a,b,t) => a+(b-a)*clamp(t,0,1);
-  const $ = id => document.getElementById(id);
-  const pitchSemitone = key => Math.pow(2, (VTRANS[key]||0)/12);
-  // equal-temperament frequency ratio for n semitones
-  const semiRatio = n => Math.pow(2, n/12);
-  // hue (0-360) -> chromatic note index (0=C .. 11=B)
-  const hueToNote = h => ((Math.round(h/30) % 12) + 12) % 12;
-
-  const MIDI_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const midiToName = m => MIDI_NAMES[((m%12)+12)%12] + (Math.floor(m/12)-1);
-
-  // Fold (don't clamp) into [lo,hi] so the note keeps tracking the image.
-  function foldInto(midi, lo, hi){
-    if(hi-lo < 12) return clamp(midi, lo, hi);
-    while(midi < lo) midi += 12;
-    while(midi > hi) midi -= 12;
-    return clamp(midi, lo, hi);
+// ============================================================
+// HEX <-> HSV
+// ============================================================
+function hexHSV(hex){
+  const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+  let h=0;
+  if(d>0){
+    if(mx===r) h=((g-b)/d)%6;
+    else if(mx===g) h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    h*=60; if(h<0)h+=360;
   }
+  return { hue:h, sat: mx===0?0:d/mx, val:mx };
+}
 
-  // Voice-aware note. Samplers get a tight window; synths get their own register.
-  function voiceNote(key, semis, oct){
-    const baseShift = clamp(Math.round(12*Math.log2(baseFreq/220)), -12, 12);
-    let midi = 60 + semis + oct*12 + baseShift;
-    const v = voices[key];
-    const [lo,hi] = (v && v.sampler) ? SAMPLER_RANGE : (SYNTH_RANGE[key] || [24,96]);
-    return midiToName(foldInto(midi, lo, hi));
-  }
+// HSV (fixed sat/val) -> hex, for drawing a drifted hue back onto a swatch/dot.
+function hsvHex(h, s=0.85, v=0.95){
+  const c=v*s, x=c*(1-Math.abs((h/60)%2-1)), m=v-c;
+  let r,g,b;
+  if(h<60){ r=c;g=x;b=0; }
+  else if(h<120){ r=x;g=c;b=0; }
+  else if(h<180){ r=0;g=c;b=x; }
+  else if(h<240){ r=0;g=x;b=c; }
+  else if(h<300){ r=x;g=0;b=c; }
+  else { r=c;g=0;b=x; }
+  const R=Math.round((r+m)*255), G=Math.round((g+m)*255), B=Math.round((b+m)*255);
+  return '#'+[R,G,B].map(n=>n.toString(16).padStart(2,'0')).join('');
+}
 
-  // ── SAMPLE LOADING ────────────────────────────────────────────────
-  // Every step here failed for someone at some point, so every step is
-  // now defended and reports WHY it failed instead of going quiet.
-  //
-  // The headline bug: a file input only fires `change` when its VALUE
-  // changes. Load kick.wav, clear the voice, pick kick.wav again -> the
-  // value is identical, no event fires, nothing loads, nothing errors.
-  // We reset .value on both sides of every pick.
+// ============================================================
+// AUDIO INIT
+// ============================================================
+function initAudio(){
+  master = new Tone.Gain(parseFloat($('sGain').value));
+  const limiter = new Tone.Limiter(-2);
+  master.connect(limiter);
+  limiter.toDestination();
+  ready=true;
+  log('<b>Engine online.</b> Load samples, set pattern, then ENGAGE.','ok');
+}
 
-  function peakOf(audioBuffer){
-    let peak = 0;
-    for(let ch=0; ch<audioBuffer.numberOfChannels; ch++){
-      const d = audioBuffer.getChannelData(ch);
-      const stride = Math.max(1, Math.floor(d.length/50000)); // sample, don't scan 10M floats
-      for(let i=0;i<d.length;i+=stride){ const a=Math.abs(d[i]); if(a>peak) peak=a; }
-    }
-    return peak;
-  }
+// ============================================================
+// SAMPLE LOADING — direct-bytes + triple-shape decode + context-resume
+// ============================================================
+function withTimeout(p, ms, label){
+  let t;
+  const timer = new Promise((_,rej)=>{ t=setTimeout(()=>rej(new Error(label+' timed out after '+(ms/1000)+'s')), ms); });
+  return Promise.race([p, timer]).finally(()=>clearTimeout(t));
+}
 
-  // Promise that rejects rather than hanging the button in `loading` forever.
-  function withTimeout(p, ms, label){
-    let t;
-    const timer = new Promise((_,rej)=>{ t=setTimeout(()=>rej(new Error(label+' timed out after '+(ms/1000)+'s')), ms); });
-    return Promise.race([p, timer]).finally(()=>clearTimeout(t));
-  }
+function readFileBuffer(file){
+  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+  return new Promise((res,rej)=>{
+    const fr = new FileReader();
+    fr.onload  = ()=>res(fr.result);
+    fr.onerror = ()=>rej(new Error('FileReader could not read the file'));
+    fr.readAsArrayBuffer(file);
+  });
+}
 
-  // File -> ArrayBuffer. File.arrayBuffer() is missing on older WebViews.
-  function readFileBuffer(file){
-    if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
-    return new Promise((res,rej)=>{
-      const fr = new FileReader();
-      fr.onload  = ()=>res(fr.result);
-      fr.onerror = ()=>rej(new Error('FileReader could not read the file'));
-      fr.readAsArrayBuffer(file);
-    });
-  }
+let _decodeCtx = null;
+async function decodeAudio(arr, sampleRate){
+  const errs = [];
+  const raw = (typeof Tone !== 'undefined') ? Tone.getContext().rawContext : null;
+  const ok = b => b && b.length > 0;
 
-  // decodeAudioData has three shapes in the wild. Try all of them.
-  // Each attempt gets its OWN copy: decode detaches the ArrayBuffer, so a
-  // failed attempt leaves the original unusable for the next one.
-  let _decodeCtx = null;
-  async function decodeAudio(arr, sampleRate){
-    const errs = [];
-    const raw = (typeof Tone !== 'undefined') ? Tone.getContext().rawContext : null;
-
-    const ok = b => b && b.length > 0;
-
-    // 1) promise form on the live context (modern everything).
-    //    Old Safari returns UNDEFINED here, not a promise. `await undefined`
-    //    resolves quietly to undefined, so we must check before awaiting or
-    //    we swallow the failure and never reach the callback form.
-    if (raw && raw.decodeAudioData){
-      try {
-        const r = raw.decodeAudioData(arr.slice(0));
-        if (r && typeof r.then === 'function'){
-          const b = await r;
-          if (ok(b)) return b;
-          errs.push('promise: empty buffer');
-        } else {
-          errs.push('promise form unsupported');
-        }
-      } catch(e){ errs.push('promise: '+(e && e.message || e)); }
-
-      // 2) callback form on the live context
-      try {
-        const b = await new Promise((res,rej)=>{
-          const r = raw.decodeAudioData(arr.slice(0), res, rej);
-          if (r && typeof r.then === 'function') r.then(res, rej);
-        });
+  if (raw && raw.decodeAudioData){
+    try {
+      const r = raw.decodeAudioData(arr.slice(0));
+      if (r && typeof r.then === 'function'){
+        const b = await r;
         if (ok(b)) return b;
-        errs.push('callback: empty buffer');
-      } catch(e){ errs.push('callback: '+(e && e.message || e)); }
-    }
+        errs.push('promise: empty buffer');
+      } else {
+        errs.push('promise form unsupported');
+      }
+    } catch(e){ errs.push('promise: '+(e && e.message || e)); }
 
-    // 3) a plain, throwaway context. Sidesteps Tone's standardized-audio-context
-    //    wrapper entirely. Matched sample rate so the pitch doesn't shift.
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (AC){
-      try {
-        if (!_decodeCtx) _decodeCtx = new AC(sampleRate ? {sampleRate} : undefined);
-        const b = await new Promise((res,rej)=>{
-          const r = _decodeCtx.decodeAudioData(arr.slice(0), res, rej);
-          if (r && typeof r.then === 'function') r.then(res, rej);
+    try {
+      const b = await new Promise((res,rej)=>{
+        const r = raw.decodeAudioData(arr.slice(0), res, rej);
+        if (r && typeof r.then === 'function') r.then(res, rej);
+      });
+      if (ok(b)) return b;
+      errs.push('callback: empty buffer');
+    } catch(e){ errs.push('callback: '+(e && e.message || e)); }
+  }
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (AC){
+    try {
+      if (!_decodeCtx) _decodeCtx = new AC(sampleRate ? {sampleRate} : undefined);
+      const b = await new Promise((res,rej)=>{
+        const r = _decodeCtx.decodeAudioData(arr.slice(0), res, rej);
+        if (r && typeof r.then === 'function') r.then(res, rej);
+      });
+      if (ok(b)) return b;
+      errs.push('fallback ctx: empty buffer');
+    } catch(e){ errs.push('fallback ctx: '+(e && e.message || e)); }
+  }
+  throw new Error(errs.join(' | ') || 'no decoder available');
+}
+
+async function loadSample(key, file){
+  const v = voiceData[key];
+  if (!file) return;
+  if (typeof Tone === 'undefined'){ log('Tone.js not loaded — check connection.','wrn'); return; }
+
+  const short = file.name.length>22 ? file.name.slice(0,21)+'…' : file.name;
+
+  try{
+    if (file.size === 0) throw new Error('file is empty (0 bytes)');
+    if (file.size > 80*1024*1024) throw new Error('file is '+(file.size/1048576|0)+' MB — too big to decode on mobile');
+
+    try{ await Tone.start(); }catch(e){ /* non-fatal */ }
+    const raw = Tone.getContext().rawContext;
+    if (raw && raw.state !== 'running'){ try{ await raw.resume(); }catch(e){} }
+
+    log(`Reading ${short}…`);
+    const arr = await withTimeout(readFileBuffer(file), 20000, 'read');
+    if (!arr || !arr.byteLength) throw new Error('got 0 bytes back from the file');
+
+    log(`Decoding ${short}…`);
+    const audioBuffer = await withTimeout(decodeAudio(arr, raw ? raw.sampleRate : undefined), 30000, 'decode');
+    if (!audioBuffer || !audioBuffer.length) throw new Error('decoded to an empty buffer');
+
+    if (v.sampler){ try{ v.sampler.dispose(); }catch(e){} v.sampler = null; }
+
+    const toneBuf = new Tone.ToneAudioBuffer(audioBuffer);
+    let s = new Tone.Sampler({ urls:{ C4: toneBuf } });
+    if (!s.loaded){ try{ s.add('C4', toneBuf); }catch(e){} }
+    if (!s.loaded) throw new Error('Tone.Sampler would not accept the buffer');
+
+    s.connect(master);
+    v.sampler = s;
+    v.file = file.name;
+    const src = $('src-'+key);
+    src.textContent = file.name;
+    src.classList.add('loaded');
+    $('note-'+key).textContent = noteForVoice(key);
+    log(`<b>${VOICES[key].label}</b> loaded: ${file.name} · ${audioBuffer.duration.toFixed(1)}s`,'ok');
+
+  }catch(err){
+    const why = (err && err.message) ? err.message : String(err);
+    console.error('[loadSample:'+key+']', err);
+    log(`<b>${VOICES[key].label}</b> — ${short}: ${why}`,'wrn');
+  }
+}
+
+// ============================================================
+// NOTE CALCULATION
+// ============================================================
+// Each voice's own hue is its own root; OFFSET fine-tunes from there.
+function noteForVoice(key){
+  const v = voiceData[key];
+  const rootIdx = hueToNote(v.hue);
+  const rootMidi = 60 + rootIdx;
+  const voiceMidi = rootMidi + v.interval;
+  return midiToName(voiceMidi);
+}
+
+// ============================================================
+// PATTERN — polyrhythm hit-sets + bar visualization
+// ============================================================
+// Spread `hits` pulses evenly across a bar of `bar` pulses. Different
+// voices with different hit counts land on different pulse indices --
+// that's what actually breaks the "everyone on every pulse" unison.
+function hitPulses(hits, bar){
+  hits = Math.max(1, Math.min(hits, bar));
+  const set = new Set();
+  for(let i=0;i<hits;i++) set.add(Math.round(i*bar/hits) % bar);
+  return set;
+}
+
+function rebuildPattern(){
+  VKEYS.forEach(k=>{ voiceData[k]._hitSet = hitPulses(voiceData[k].hitsPerBar, barLength); });
+
+  const el = $('barStrip');
+  el.innerHTML = '';
+  for(let i=0;i<barLength;i++){
+    const cell = document.createElement('div');
+    cell.className = 'barcell';
+    cell.id = 'barcell-'+i;
+    VKEYS.forEach(k=>{
+      if(voiceData[k]._hitSet.has(i)){
+        const dot = document.createElement('div');
+        dot.className = 'bardot';
+        dot.style.background = hsvHex(voiceData[k].hue);
+        cell.appendChild(dot);
+      }
+    });
+    el.appendChild(cell);
+  }
+}
+
+function markPulse(idx){
+  const prev = document.querySelector('.barcell.now');
+  if(prev) prev.classList.remove('now');
+  const cur = $('barcell-'+idx);
+  if(cur) cur.classList.add('now');
+}
+
+// ============================================================
+// TRIGGER / PLAYBACK
+// ============================================================
+function triggerPulse(idx, time){
+  VKEYS.forEach(k=>{
+    const v = voiceData[k];
+    if(!v.sampler || !v.sampler.loaded) return;
+    if(!v._hitSet || !v._hitSet.has(idx)) return;               // not this voice's pulse
+    if(v.skipProb > 0 && Math.random()*100 < v.skipProb) return; // probability skip
+    const note = noteForVoice(k);
+    try{
+      v.sampler.triggerAttackRelease(note, '8n', time);
+    }catch(e){
+      console.error('Trigger failed:', e);
+    }
+  });
+}
+
+// ============================================================
+// LOOP SCHEDULING
+// ============================================================
+function scheduleLoop(){
+  if(loopHandle !== null){
+    Tone.Transport.clear(loopHandle);
+    loopHandle = null;
+  }
+  pulseIndex = 0;
+  const pulseInterval = 60 / (bpm * pulseRate);
+  loopHandle = Tone.Transport.scheduleRepeat(time=>{
+    const idx = pulseIndex % barLength;
+    if(scanSpeed > 0){
+      VKEYS.forEach(k=>{ voiceData[k].hue = (voiceData[k].hue + scanSpeed) % 360; });
+    }
+    triggerPulse(idx, time);
+    Tone.Draw.schedule(()=>{
+      markPulse(idx);
+      if(scanSpeed > 0){
+        VKEYS.forEach(k=>{
+          $('note-'+k).textContent = noteForVoice(k);
+          const sw = $('swatch-'+k);
+          if(sw) sw.value = hsvHex(voiceData[k].hue);
         });
-        if (ok(b)) return b;
-        errs.push('fallback ctx: empty buffer');
-      } catch(e){ errs.push('fallback ctx: '+(e && e.message || e)); }
-    }
-    throw new Error(errs.join(' | ') || 'no decoder available');
-  }
-
-  async function loadSample(key, file){
-    const btn = $('smp-'+key);
-    if (!file) return;
-    if (typeof Tone === 'undefined'){ setStatus('Tone.js not loaded \u2014 check connection.','wrn'); return; }
-
-    btn.classList.remove('loaded'); btn.classList.add('loading');
-    const short = file.name.length>22 ? file.name.slice(0,21)+'\u2026' : file.name;
-
-    try{
-      if (file.size === 0) throw new Error('file is empty (0 bytes)');
-      if (file.size > 80*1024*1024) throw new Error('file is '+(file.size/1048576|0)+' MB \u2014 too big to decode on mobile');
-
-      // Wake the audio context. Must happen while the file-picker gesture is
-      // still warm, and Tone.start() is a no-op if it is already running.
-      try{ await Tone.start(); toneStarted = true; }catch(e){ /* non-fatal */ }
-      if (!audioCtx) initAudio();
-      const raw = Tone.getContext().rawContext;
-      if (raw && raw.state !== 'running'){ try{ await raw.resume(); }catch(e){} }
-
-      const v = voices[key];
-      if(!v) throw new Error('audio engine not ready \u2014 press PLAY once, then retry');
-
-      setStatus('Reading '+short+'\u2026','inf');
-      const arr = await withTimeout(readFileBuffer(file), 20000, 'read');
-      if (!arr || !arr.byteLength) throw new Error('got 0 bytes back from the file');
-
-      setStatus('Decoding '+short+'\u2026','inf');
-      const audioBuffer = await withTimeout(
-        decodeAudio(arr, raw ? raw.sampleRate : undefined), 30000, 'decode');
-      if (!audioBuffer || !audioBuffer.length) throw new Error('decoded to an empty buffer');
-
-      // Swap in only AFTER a clean decode, so a bad file never kills a good voice.
-      if (v.sampler){ try{ v.sampler.dispose(); }catch(e){} v.sampler = null; }
-
-      const peak = peakOf(audioBuffer);
-      // makeup gain so a whisper and a slammed master land in the same place
-      v.sampleGain = peak > 0.0001 ? clamp(0.72/peak, 0.15, 6) : 1;
-
-      const toneBuf = new Tone.ToneAudioBuffer(audioBuffer);
-      let s = new Tone.Sampler({ urls:{ C4: toneBuf }, attack:0.005, release:0.25 });
-
-      // Belt and braces: if the constructor did not take the buffer, add it by hand.
-      if (!s.loaded){
-        try{ s.add('C4', toneBuf); }catch(e){}
       }
-      if (!s.loaded) throw new Error('Tone.Sampler would not accept the buffer');
+    }, time);
+    pulseIndex++;
+  }, pulseInterval);
+}
 
-      s.connect(v.vol);
-      v.sampler = s;
-      if (key in heldNote) heldNote[key] = null;
+// ============================================================
+// MAIN LOOP
+// ============================================================
+async function engage(){
+  if(!ready) initAudio();
+  await Tone.start();
+  playing=true;
+  Tone.Transport.bpm.value = bpm;
 
-      btn.classList.remove('loading'); btn.classList.add('loaded');
-      btn.innerText = 'CLR';
-      $('src-'+key).innerText = file.name.length>10 ? file.name.slice(0,9)+'\u2026' : file.name;
-      setStatus(key.toUpperCase()+' sample ready: '+short+' \u00b7 '+audioBuffer.duration.toFixed(1)+
-                's \u00b7 peak '+peak.toFixed(2)+' \u00b7 gain \u00d7'+v.sampleGain.toFixed(2),'ok');
+  $('dot').classList.add('live');
+  $('stxt').textContent = 'LIVE';
+  $('btnPlay').classList.add('on');
+  $('btnPlay').textContent = '■ STOP';
 
-    }catch(err){
-      const why = (err && err.message) ? err.message : String(err);
-      console.error('[loadSample:'+key+']', err);
-      btn.classList.remove('loading','loaded');
-      btn.innerText = 'SMP';
-      setStatus(key.toUpperCase()+' \u2014 '+short+': '+why, 'wrn');
-    }
+  scheduleLoop();
+  Tone.Transport.start();
+  log('Engaged · triggering voices on the clock.','ok');
+}
+
+function stop(){
+  playing=false;
+  if(loopHandle !== null){
+    Tone.Transport.clear(loopHandle);
+    loopHandle=null;
   }
-
-  function clearSample(key){
-    const v=voices[key];
-    if (v && v.sampler){ try{v.sampler.dispose();}catch(e){} v.sampler=null; } if(key in heldNote) heldNote[key]=null;
-    if(v) v.sampleGain = 1;
-    const b=$('smp-'+key); b.classList.remove('loaded','loading'); b.innerText='SMP';
-    const defs={bass:'Root',pad:'Third',lead:'Fifth/7th',rhythm:'Root puls'};
-    $('src-'+key).innerText = defs[key];
-    setStatus(`${key.toUpperCase()} back to synth.`,'inf');
-  }
-
-  // Record the master output to a downloadable .webm
-  async function toggleRecording(){
-    if(!audioRecorder){ setStatus('Engage the engine first, then record.','wrn'); return; }
-    const btn=$('btnRec');
-    if(!isRecording){
-      audioRecorder.start(); isRecording=true;
-      if(btn){ btn.innerText='● STOP REC'; btn.classList.add('recording'); }
-      setStatus('Recording master output…','live');
-    } else {
-      const blob = await audioRecorder.stop(); isRecording=false;
-      if(btn){ btn.innerText='● REC'; btn.classList.remove('recording'); }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.download = `axiom_${Date.now()}.webm`; a.href = url; a.click();
-      setTimeout(()=>URL.revokeObjectURL(url), 1000);
-      setStatus('Recording saved (.webm).','ok');
-    }
-  }
-
-  function setStatus(msg, type='inf') {
-    const el = $('status');
-    el.className = isPlaying ? 'live' : type;
-    el.querySelector('.stag').innerText = `[${isPlaying ? 'LIVE' : type.toUpperCase()}]`;
-    $('smsg').innerText = msg;
-  }
-
-  // Sobel edge analysis
-  function analyzeImage(img) {
-    const oc = document.createElement('canvas');
-    oc.width = img.naturalWidth; oc.height = img.naturalHeight;
-    const cx = oc.getContext('2d'); cx.drawImage(img,0,0);
-    const { data, width:W, height:H } = cx.getImageData(0,0,oc.width,oc.height);
-    const gray = new Float32Array(W*H);
-    for (let i=0;i<gray.length;i++) { const j=i*4; gray[i]=0.299*data[j]+0.587*data[j+1]+0.114*data[j+2]; }
-    // compute global stats first and apply to composition
-    applyGlobalStats(computeGlobalStats(data, W, H));
-    compV = []; compH = [];
-    for (let y=0; y<H; y+=RES) compV.push(extractRow(data,gray,W,H,y));
-    for (let x=0; x<W; x+=RES) compH.push(extractCol(data,gray,W,H,x));
-    idxV = 0; idxH = 0;
-    setStatus(`${compV.length} rows · ${compH.length} cols analyzed.`,'ok');
-    renderDensity();
-  }
-
-  // GLOBAL IMAGE STATS — computed once on load, held here
-  let imgGlobals = null;
-
-  function computeGlobalStats(data, W, H) {
-    let sumL=0, sumR=0, sumG=0, sumB=0, sumSat=0, edgeCount=0, totalPx=0;
-    let hueX=0, hueY=0, hueTotal=0;
-    const step = 4; // sample every 4th pixel for speed
-    for (let y=step; y<H-step; y+=step) {
-      for (let x=step; x<W-step; x+=step) {
-        const i=(y*W+x)*4;
-        const r=data[i],g=data[i+1],b=data[i+2];
-        const lum=(r+g+b)/3;
-        sumL+=lum; sumR+=r; sumG+=g; sumB+=b; totalPx++;
-        const mx=Math.max(r,g,b),mn=Math.min(r,g,b),dl=mx-mn;
-        const sat = mx===0?0:dl/mx; sumSat+=sat;
-        // hue accumulation (circular mean)
-        if(sat>0.15&&mx>25){
-          let hh=0;
-          if(dl===0){}
-          else if(mx===r) hh=((g-b)/dl*60+360)%360;
-          else if(mx===g) hh=(b-r)/dl*60+120;
-          else             hh=(r-g)/dl*60+240;
-          hueX+=Math.cos(hh*Math.PI/180); hueY+=Math.sin(hh*Math.PI/180); hueTotal++;
-        }
-        // basic edge proxy: local contrast
-        const i2=(y*W+(x+step))*4;
-        const lum2=(data[i2]+data[i2+1]+data[i2+2])/3;
-        if(Math.abs(lum-lum2)>30) edgeCount++;
-      }
-    }
-    const brightness = (sumL/totalPx)/255;
-    const avgR=(sumR/totalPx)/255, avgB=(sumB/totalPx)/255;
-    const saturation = sumSat/totalPx;
-    const edgeDensity = edgeCount/totalPx;
-    const warmCool = clamp((avgR-avgB+1)/2,0,1); // 0=cool,1=warm
-    // dominant hue from circular mean
-    let domHueDeg = 0, domHueStr = 0;
-    if(hueTotal>0){
-      domHueDeg = (Math.atan2(hueY/hueTotal, hueX/hueTotal)*180/Math.PI+360)%360;
-      domHueStr = Math.sqrt((hueX/hueTotal)**2+(hueY/hueTotal)**2);
-    }
-    // variance across rows = complexity proxy
-    const rowBrightness=[];
-    for(let y=0;y<H;y+=step){
-      let rs=0,rc=0;
-      for(let x=0;x<W;x+=step){const i=(y*W+x)*4;rs+=(data[i]+data[i+1]+data[i+2])/3;rc++;}
-      rowBrightness.push(rs/rc/255);
-    }
-    const mean=rowBrightness.reduce((a,b)=>a+b,0)/rowBrightness.length;
-    const variance=rowBrightness.reduce((a,v)=>a+(v-mean)**2,0)/rowBrightness.length;
-    const complexity = clamp(Math.sqrt(variance)*4,0,1);
-
-    // scale bias: warm+bright → major, cool+dark → minor, high edge → dissonant
-    let scaleBias;
-    if(edgeDensity>0.25) scaleBias='DISSONANT';
-    else if(warmCool>0.55&&brightness>0.45) scaleBias='MAJOR';
-    else if(warmCool<0.45||brightness<0.4) scaleBias='MINOR';
-    else scaleBias='AUTO';
-
-    return { brightness, saturation, edgeDensity, warmCool, complexity, domHueDeg, domHueStr, scaleBias };
-  }
-
-  function applyGlobalStats(g) {
-    imgGlobals = g;
-
-    // show panel
-    document.getElementById('img-metrics').classList.add('visible');
-
-    const fmt = v => (v*100).toFixed(0)+'%';
-    const setMet = (id,val,pct) => {
-      document.getElementById('mg-'+id).innerText = fmt(val);
-      document.getElementById('mb-'+id).style.width = (pct*100).toFixed(1)+'%';
-    };
-
-    setMet('bright',   g.brightness,   g.brightness);
-    setMet('contrast', g.complexity,   g.complexity);
-    setMet('sat',      g.saturation,   g.saturation);
-    setMet('edge',     g.edgeDensity,  g.edgeDensity);
-    setMet('temp',     g.warmCool,     g.warmCool);
-    setMet('complex',  g.complexity,   g.complexity);
-
-    // dominant hue
-    const hueNote = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][Math.round(g.domHueDeg/30)%12];
-    document.getElementById('mg-hue').innerText = hueNote + ' ' + Math.round(g.domHueDeg)+'°';
-    document.getElementById('mb-hue').style.width = (g.domHueDeg/360*100).toFixed(1)+'%';
-    document.getElementById('mb-hue').style.background = `hsl(${g.domHueDeg},70%,55%)`;
-
-    document.getElementById('mg-scale').innerText = g.scaleBias;
-    document.getElementById('mb-scale').style.width = g.saturation*100+'%';
-
-    // influence text
-    const lines = [
-      `SCALE → <b>${g.scaleBias}</b>`,
-      `RHYT RATE → <b>${(8*(0.5+g.edgeDensity)).toFixed(1)} Hz</b>`,
-      `BASE FREQ → <b>${Math.round(lerp(110,440,g.brightness))} Hz</b>`,
-      `PAD GAIN → <b>${lerp(0.5,1.5,g.saturation).toFixed(2)}</b>`,
-    ];
-    document.getElementById('met-influence-txt').innerHTML = lines.join(' · ');
-
-    // — AUTO-APPLY influences to sliders & state —
-
-    // 1. Scale: push scaleMode to image-derived bias (only if still AUTO)
-    if(scaleMode==='AUTO'){ scaleMode=g.scaleBias; $('btnScale').innerText='SCALE: '+g.scaleBias; }
-
-    // 2. Base frequency: brightness maps to register (dark=low, bright=high)
-    const newFreq = clamp(Math.round(lerp(110,440,g.brightness)), 55, 440);
-    baseFreq = newFreq;
-    $('sldFreq').value = newFreq; $('txtFreq').innerText = newFreq+' Hz';
-
-    // 3. Rhythm rate: edge density drives base rhythm speed
-    const newRate = parseFloat((rhythmRateBase*(0.5+g.edgeDensity*1.5)).toFixed(1));
-    rhythmRate = clamp(newRate,0.5,20);
-    $('sldRate').value = rhythmRate; $('txtRate').innerText = rhythmRate.toFixed(1)+' Hz';
-
-    // 4. PAD gain: saturation → harmonic richness
-    const padGain = clamp(lerp(0.5,1.5,g.saturation),0,2);
-    VLEVEL.pad = padGain;
-    $('vl-pad').value = padGain; $('vv-pad').innerText = padGain.toFixed(2);
-
-    // 5. Wheel rotation: dominant hue offsets the color wheel for root mapping
-    wheelRotation = g.domHueDeg > 0 ? g.domHueDeg : 0;
-    $('sldWheel').value = wheelRotation; $('txtWheel').innerText = Math.round(wheelRotation)+'°';
-  }
-
-  function sobelEdge(gray,W,H,x,y) {
-    if (x<=0||x>=W-1||y<=0||y>=H-1) return 0;
-    const gi=y*W+x;
-    const a=gray[gi-W-1],b=gray[gi-W],c=gray[gi-W+1];
-    const d=gray[gi-1],f=gray[gi+1];
-    const g=gray[gi+W-1],h=gray[gi+W],i=gray[gi+W+1];
-    const dx=(c+2*f+i)-(a+2*d+g), dy=(g+2*h+i)-(a+2*b+c);
-    return Math.sqrt(dx*dx+dy*dy);
-  }
-
-  function extractRow(data,gray,W,H,y) {
-    let sL=0,sR=0,sG=0,sB=0,sSat=0,minL=255,maxL=0,edges=0,strong=0;
-    let wxS=0,wS=0,hueX=0,hueY=0;
-    const n=Math.floor(W/RES);
-    for (let x=0;x<W;x+=RES) {
-      const i=(y*W+x)*4;
-      const r=data[i],g=data[i+1],b=data[i+2],lum=(r+g+b)/3;
-      sL+=lum; sR+=r; sG+=g; sB+=b;
-      minL=Math.min(minL,lum); maxL=Math.max(maxL,lum);
-      wxS+=lum*x; wS+=lum;
-      const mx=Math.max(r,g,b),mn=Math.min(r,g,b),dl=mx-mn;
-      sSat += mx===0 ? 0 : dl/mx;
-      accHue(r,g,b,mx,mn,dl,lum,h=>{hueX+=h.x;hueY+=h.y;});
-      const mag=sobelEdge(gray,W,H,x,y);
-      if (mag>SOBEL_THRESH) { edges++; if (mag>SOBEL_THRESH*STRONG_MULT) strong++; }
-    }
-    const aL=sL/n,aR=sR/n,aB=sB/n,aSat=sSat/n;
-    const H_=meanHue(hueX,hueY,n);
-    return { luminance:aL/255, colorTemp:clamp((aR-aB)/255,-1,1), contrast:(maxL-minL)/255,
-             edgeDensity:clamp(edges/n,0,1), strongEdges:clamp(strong/n,0,1),
-             saturation:aSat, symmetry:1-Math.abs(aSat-0.5)*2, yNorm:y/H, latBias:wS>0?(wxS/wS)/W*2-1:0,
-             hue:H_.deg, hueStr:H_.str };
-  }
-
-  function extractCol(data,gray,W,H,x) {
-    let sL=0,sR=0,sG=0,sB=0,sSat=0,minL=255,maxL=0,edges=0,strong=0;
-    let wyS=0,wS=0,hueX=0,hueY=0;
-    const n=Math.floor(H/RES);
-    for (let y=0;y<H;y+=RES) {
-      const i=(y*W+x)*4;
-      const r=data[i],g=data[i+1],b=data[i+2],lum=(r+g+b)/3;
-      sL+=lum; sR+=r; sG+=g; sB+=b;
-      minL=Math.min(minL,lum); maxL=Math.max(maxL,lum);
-      wyS+=lum*y; wS+=lum;
-      const mx=Math.max(r,g,b),mn=Math.min(r,g,b),dl=mx-mn;
-      sSat += mx===0 ? 0 : dl/mx;
-      accHue(r,g,b,mx,mn,dl,lum,h=>{hueX+=h.x;hueY+=h.y;});
-      const mag=sobelEdge(gray,W,H,x,y);
-      if (mag>SOBEL_THRESH) { edges++; if (mag>SOBEL_THRESH*STRONG_MULT) strong++; }
-    }
-    const aL=sL/n,aR=sR/n,aB=sB/n,aSat=sSat/n;
-    const H_=meanHue(hueX,hueY,n);
-    return { luminance:aL/255, colorTemp:clamp((aR-aB)/255,-1,1), contrast:(maxL-minL)/255,
-             edgeDensity:clamp(edges/n,0,1), strongEdges:clamp(strong/n,0,1),
-             saturation:aSat, symmetry:1-Math.abs(aSat-0.5)*2, xNorm:x/W, vertBias:wS>0?(wyS/wS)/H*2-1:0,
-             hue:H_.deg, hueStr:H_.str };
-  }
-
-  // Per-pixel hue as a unit vector, weighted by how vivid + bright it is,
-  // so grey/black pixels barely count and a strong color dominates the row.
-  function accHue(r,g,b,mx,mn,dl,lum,cb) {
-    if (dl<=0) return;
-    const rr=r/255,gg=g/255,bb=b/255,dd=dl/255;
-    let hh;
-    if (mx===r) hh=((gg-bb)/dd)%6;
-    else if (mx===g) hh=(bb-rr)/dd+2;
-    else hh=(rr-gg)/dd+4;
-    hh*=60; if(hh<0)hh+=360;
-    const psat = mx===0?0:dl/mx;
-    const wt = psat*(lum/255);
-    const rad = hh*Math.PI/180;
-    cb({ x:Math.cos(rad)*wt, y:Math.sin(rad)*wt });
-  }
-  // Circular mean of accumulated hue vectors -> avg degree + strength 0..1
-  function meanHue(hx,hy,n) {
-    const mag=Math.sqrt(hx*hx+hy*hy);
-    let deg=0; if(mag>0){ deg=Math.atan2(hy,hx)*180/Math.PI; if(deg<0)deg+=360; }
-    return { deg, str:clamp(mag/n*3,0,1) };
-  }
-
-  function getScale(brightness) {
-    if (scaleMode!=='AUTO') return SCALES[scaleMode]||SCALES.MAJOR;
-    const t = clamp((brightness)/0.3,0,1);
-    return SCALES.MAJOR.map((_,i)=>lerp(SCALES.MINOR[i],SCALES.MAJOR[i],t));
-  }
-  function toDeg(v) { return Math.floor(clamp(v,0,0.999)*8); }
-
-  // AUDIO
-  // ============================================================
-  // UNIFIED AUDIO ENGINE — one Tone.js graph. Each voice is EITHER a Tone
-  // synth or a loaded Tone.Sampler. Same trigger path, one context, one clock.
-  // ============================================================
-  const SYNTH_OSC = { SIN:'sine', SAW:'sawtooth', SQR:'square', TRI:'triangle', FAT:'fatsawtooth', NOISE:'noise' };
-  let toneAnalyser = null, specAnalyser = null;
-  let audioRecorder = null, isRecording = false;
-
-  function initAudio() {
-    if (typeof Tone === 'undefined') { setStatus('Tone.js not loaded — check connection.','wrn'); return; }
-    audioCtx = Tone.getContext().rawContext;               // one shared context
-    masterGain = new Tone.Gain(parseFloat($('sldGain').value));
-    const limiter = new Tone.Limiter(-2);
-    toneAnalyser = new Tone.Analyser('waveform', 1024);
-    specAnalyser = new Tone.Analyser('fft', 64);
-    masterGain.connect(limiter); limiter.toDestination();
-    masterGain.connect(toneAnalyser);
-    masterGain.connect(specAnalyser);
-    // Everything through master also feeds the recorder
-    audioRecorder = new Tone.Recorder();
-    masterGain.connect(audioRecorder);
-    VKEYS.forEach(key => {
-      const vol = new Tone.Gain(1).connect(masterGain);   // straight to master, no FX
-      voices[key] = { synth:null, sampler:null, vol, instr:VINSTR[key], levelMul:VLEVEL[key], sampleGain:1 };
-      buildSynth(key);
-    });
-    rhythmNext = Tone.now();
-    setStatus('Unified Tone engine online · synth + sampler voices','ok');
-  }
-
-  // build (or rebuild) a voice's synth from its instrument type
-  function buildSynth(key) {
-    const v=voices[key]; if(!v) return;
-    if(key in heldNote) heldNote[key]=null;
-    if(v.synth){ try{v.synth.dispose();}catch(e){} v.synth=null; }
-    if(v.instr==='OFF') return;
-    if(v.instr==='NOISE'){
-      v.synth = new Tone.NoiseSynth({ noise:{type:'white'}, envelope:{attack:0.01,decay:0.2,sustain:0.4,release:0.4} }).connect(v.vol);
-    } else {
-      const type = SYNTH_OSC[v.instr] || 'sine';
-      v.synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator:{ type },
-        envelope:{ attack:0.02, decay:0.18, sustain:0.55, release:0.6 }
-      }).connect(v.vol);
-    }
-  }
-
-  // trigger a voice at a note for a duration — sampler wins if one is loaded
-  function playVoice(key, note, dur, vel, time){
-    const v=voices[key]; if(!v) return;
-    const mk = v.sampler ? (v.sampleGain||1) : 1;
-    const level = clamp((v.levelMul!=null?v.levelMul:1) * mk, 0, 2.5);
-    try{ v.vol.gain.rampTo(level, 0.03); }catch(e){}
-    if (v.sampler){
-      try{ v.sampler.triggerAttackRelease(note, dur, time, clamp(vel*0.9,0,1)); }catch(e){}
-    } else if (v.synth && v.instr!=='OFF'){
-      try{
-        if(v.instr==='NOISE') v.synth.triggerAttackRelease(dur, time, clamp(vel,0,1));
-        else v.synth.triggerAttackRelease(note, dur, time, clamp(vel,0,1));
-      }catch(e){}
-    }
-  }
-
-  function releaseAll() {
-    VKEYS.forEach(k=>{ const v=voices[k]; if(!v) return;
-      try{ if(v.synth&&v.synth.releaseAll) v.synth.releaseAll(); }catch(e){}
-      try{ if(v.sampler&&v.sampler.releaseAll) v.sampler.releaseAll(); }catch(e){}
-    });
-    heldNote.bass=heldNote.pad=heldNote.lead=null;
-    bassTriggered=padTriggered=leadTriggered=false;
-    bassNext=padNext=bassMin=padMin=0;
-    lastBassNote=lastPadNote=null;
-  }
-
-  // Sustained voice: holds its note and only re-attacks when the note CHANGES.
-  // This is what keeps bass/pad/lead off the pulse — they glide with the scan.
-  function holdVoice(key, note, vel, time){
-    const v=voices[key]; if(!v) return;
-    const mk = v.sampler ? (v.sampleGain||1) : 1;
-    const level = clamp((v.levelMul!=null?v.levelMul:1) * mk, 0, 2.5);
-    try{ v.vol.gain.rampTo(level, 0.03); }catch(e){}
-    if(note===heldNote[key]) return;                 // already holding it — sustain
-    if(heldNote[key]!=null){                          // release the old note first
-      try{
-        if(v.sampler) v.sampler.triggerRelease(heldNote[key], time);
-        else if(v.synth && v.instr!=='NOISE') v.synth.triggerRelease(heldNote[key], time);
-      }catch(e){}
-    }
-    heldNote[key]=note;
-    if(!v.sampler && v.instr==='OFF') return;         // nothing to sound
-    try{
-      if(v.sampler) v.sampler.triggerAttack(note, time, clamp(vel*0.9,0,1));
-      else if(v.instr==='NOISE') v.synth.triggerAttack(time, clamp(vel,0,1));
-      else if(v.synth) v.synth.triggerAttack(note, time, clamp(vel,0,1));
-    }catch(e){}
-  }
-
-  // Called every frame with the current scan metrics. Builds one chord and
-  // pulses every voice (synth or sample) on a shared clock.
-  function updateSynth(mV,mH) {
-    if(!audioCtx || !voices.bass) return;
-    const mPri = mV||mH; if(!mPri) return;
-
-    const bright = mPri.luminance, sat = mPri.saturation, vivid = mPri.hueStr;
-    // hue -> root (wheel rotation transposes); hold last root through grey
-    const rootIdx = vivid > 0.05 ? hueToNote(mPri.hue + wheelRotation) : lastRoot;
-    lastRoot = rootIdx;
-
-    let third, qual;
-    if      (scaleMode==='MAJOR')     { third=4; qual=''; }
-    else if (scaleMode==='MINOR')     { third=3; qual='m'; }
-    else if (scaleMode==='DISSONANT') { third=6; qual='(b5)'; }
-    else if (sat < 0.14)              { third=7; qual='5'; }
-    else if (bright >= 0.2)           { third=4; qual=''; }
-    else                              { third=3; qual='m'; }
-    const use7 = sat > 0.1 && third!==7;
-    const trans = k => VTRANS[k]||0;
-    // lead is now 0 (was +1) so it sits straight, no octave stacking
-    const vOct = { bass:0, pad:0, lead:0, rhythm:1 };
-
-    // small lookahead: scheduling AT Tone.now() lands in the past by the time
-    // the audio thread sees it, which makes Tone drop notes silently.
-    const now = Tone.now() + 0.02;
-
-    // RHYTHM — edge-driven pulse clock.
-    {
-      const edgeMod = mPri.edgeDensity*rhythmDepth;
-      const rate = clamp(rhythmRate*(0.4+edgeMod*2.6), 0.3, 24);
-      const interval = 1/rate;                      // was scaled by 0.42 -> ~2.4x too fast
-      if(now >= rhythmNext){
-        rhythmNext = now + interval;
-        if(voices.rhythm.instr!=='OFF' || voices.rhythm.sampler)
-          playVoice('rhythm', voiceNote('rhythm', rootIdx + trans('rhythm'), vOct.rhythm),
-                    Math.min(0.18, interval*0.8), 0.5, now);
-      }
-    }
-
-    // LEAD — same clock, half rate, melodic.
-    {
-      const edgeMod = mPri.edgeDensity*rhythmDepth;
-      const rate = clamp(rhythmRate*(0.4+edgeMod*1.6)*0.5, 0.2, 12);
-      const interval = 1/rate;
-      if(now >= leadPulseNext){
-        leadPulseNext = now + interval;
-        const edgeInterval = Math.floor(mPri.edgeDensity * 12);
-        const leadNote = voiceNote('lead', rootIdx + edgeInterval + trans('lead'), vOct.lead);
-        if(voices.lead.instr!=='OFF' || voices.lead.sampler)
-          playVoice('lead', leadNote, Math.min(0.4, interval*0.85), 0.4 + mPri.edgeDensity*0.5, now);
-      }
-    }
-
-    // BASS — always running. Saturation sets the PULSE RATE, not whether it
-    // sounds at all. A latch on absolute level dies on any image whose
-    // saturation never dips back under the re-arm threshold.
-    {
-      const f = clamp(sat / BASS_SAT_FULL, 0, 1);
-      const interval = lerp(BASS_SLOW, BASS_FAST, f);
-      const note = voiceNote('bass', rootIdx + trans('bass'), vOct.bass);
-      const changed = note !== lastBassNote;
-      if((changed || now >= bassNext) && now >= bassMin){
-        // sustain across the gap so it reads as a line, not a blip
-        playVoice('bass', note, interval*0.95, 0.45 + f*0.35, now);
-        lastBassNote = note;
-        bassNext = now + interval;
-        bassMin  = now + MIN_RETRIG;
-      }
-    }
-
-    // PAD — luminance shapes velocity + hold length; re-attacks when the chord
-    // moves or when the hold expires, so it can't latch silent either.
-    {
-      const f = clamp(bright, 0, 1);
-      const hold = lerp(PAD_MAX_HOLD, 1.1, f);
-      const note = voiceNote('pad', rootIdx + third + trans('pad'), vOct.pad);
-      const changed = note !== lastPadNote;
-      if((changed || now >= padNext) && now >= padMin){
-        playVoice('pad', note, hold*0.95, 0.12 + f*0.6, now);
-        lastPadNote = note;
-        padNext = now + hold;
-        padMin  = now + MIN_RETRIG*2;
-      }
-    }
-
-    const chordLabel = HUE_NOTES[rootIdx] + qual + (use7?'7':'');
-    $('valTon').innerText = chordLabel;
-    const cube=$('chord-cube');
-    if(cube){
-      cube.innerText = HUE_NOTES[rootIdx];
-      cube.style.background = `hsl(${rootIdx*30},70%,55%)`;
-      $('chord-note').innerText = chordLabel;
-      $('chord-sub').innerText = `hue ${Math.round(mPri.hue)}° · wheel ${Math.round(wheelRotation)}°`;
-    }
-  }
-
-  // CANVAS
-  const scanCanvas=$('scan-canvas'), scanCtx=scanCanvas.getContext('2d');
-  const oscCanvas=$('osc-canvas'), oscCtx=oscCanvas.getContext('2d');
-  const specCanvas=$('spec-canvas'), specCtx=specCanvas.getContext('2d');
-  const densCanvas=$('dens-canvas'), densCtx=densCanvas.getContext('2d');
-
-  function resizeAll() {
-    [scanCanvas,oscCanvas,specCanvas,densCanvas].forEach(c=>{c.width=c.clientWidth||1;c.height=c.clientHeight||1;});
-    if(loadedImage) computeRect();
-    renderScan(); renderDensity();
-  }
-  function computeRect() {
-    const cw=scanCanvas.width,ch=scanCanvas.height;
-    const ir=loadedImage.naturalWidth/loadedImage.naturalHeight, cr=cw/ch;
-    let w,h;
-    if(ir>cr){w=cw;h=cw/ir;}else{h=ch;w=ch*ir;}
-    imgRect={x:(cw-w)/2,y:(ch-h)/2,w,h};
-  }
-  function renderScan() {
-    const cw=scanCanvas.width,ch=scanCanvas.height;
-    scanCtx.fillStyle='#080809'; scanCtx.fillRect(0,0,cw,ch);
-    if(!loadedImage) return;
-    const r=imgRect;
-    scanCtx.drawImage(loadedImage, r.x, r.y, r.w, r.h);
-    if((scanMode==='V'||scanMode==='DUAL')&&compV.length) {
-      const sy=r.y+(idxV/compV.length)*r.h;
-      scanCtx.save(); scanCtx.strokeStyle='rgba(255,230,0,0.20)'; scanCtx.lineWidth=7;
-      scanCtx.beginPath(); scanCtx.moveTo(r.x,sy); scanCtx.lineTo(r.x+r.w,sy); scanCtx.stroke();
-      scanCtx.strokeStyle='#ffe600'; scanCtx.lineWidth=1.5;
-      scanCtx.beginPath(); scanCtx.moveTo(r.x,sy); scanCtx.lineTo(r.x+r.w,sy); scanCtx.stroke();
-      scanCtx.restore();
-    }
-    if((scanMode==='H'||scanMode==='DUAL')&&compH.length) {
-      const sx=r.x+(idxH/compH.length)*r.w;
-      scanCtx.save(); scanCtx.strokeStyle='rgba(255,0,234,0.18)'; scanCtx.lineWidth=7;
-      scanCtx.beginPath(); scanCtx.moveTo(sx,r.y); scanCtx.lineTo(sx,r.y+r.h); scanCtx.stroke();
-      scanCtx.strokeStyle='#ff00ea'; scanCtx.lineWidth=1.5;
-      scanCtx.beginPath(); scanCtx.moveTo(sx,r.y); scanCtx.lineTo(sx,r.y+r.h); scanCtx.stroke();
-      scanCtx.restore();
-    }
-  }
-  function renderOsc() {
-    const w=oscCanvas.width,h=oscCanvas.height;
-    oscCtx.fillStyle='#060608'; oscCtx.fillRect(0,0,w,h);
-    if(toneAnalyser&&isPlaying) {
-      const buf=toneAnalyser.getValue();   // Float32Array, -1..1
-      oscCtx.strokeStyle='#3b82f6'; oscCtx.lineWidth=1.3; oscCtx.beginPath();
-      for(let i=0;i<buf.length;i++){const x=i*(w/buf.length),y=(0.5 - buf[i]*0.5)*h; i===0?oscCtx.moveTo(x,y):oscCtx.lineTo(x,y);}
-      oscCtx.stroke();
-    } else {
-      oscCtx.strokeStyle='rgba(59,130,246,0.12)'; oscCtx.beginPath(); oscCtx.moveTo(0,h/2); oscCtx.lineTo(w,h/2); oscCtx.stroke();
-    }
-  }
-  function renderSpectrum() {
-    const w=specCanvas.width,h=specCanvas.height;
-    specCtx.fillStyle='#060608'; specCtx.fillRect(0,0,w,h);
-    if(specAnalyser&&isPlaying){
-      const buf=specAnalyser.getValue();          // Float32Array of dB
-      const n=buf.length, bw=w/n;
-      for(let i=0;i<n;i++){
-        const v=clamp((buf[i]+100)/100,0,1);      // -100dB..0dB -> 0..1
-        const bh=v*h;
-        const hue=(210 - (i/n)*260 + 360)%360;    // low=blue -> high=pink
-        specCtx.fillStyle=`hsl(${hue},80%,${20+v*45}%)`;
-        specCtx.fillRect(i*bw, h-bh, bw+0.5, bh);
-      }
-    } else {
-      specCtx.strokeStyle='rgba(59,130,246,0.12)'; specCtx.beginPath();
-      specCtx.moveTo(0,h-1); specCtx.lineTo(w,h-1); specCtx.stroke();
-    }
-  }
-  function renderDensity() {
-    const w=densCanvas.width,h=densCanvas.height;
-    densCtx.fillStyle='#080809'; densCtx.fillRect(0,0,w,h);
-    const data=scanMode==='H'?compH:compV; if(!data.length) return;
-    const fw=w/data.length;
-    data.forEach((m,i)=>{const hue=m.colorTemp*180+180,lit=m.edgeDensity*55+8; densCtx.fillStyle=`hsl(${hue},75%,${lit}%)`; densCtx.fillRect(i*fw,0,fw+1,h);});
-    const idx=scanMode==='H'?idxH:idxV;
-    const cx=(idx/data.length)*w;
-    densCtx.strokeStyle='#ffe600'; densCtx.lineWidth=1.5; densCtx.beginPath(); densCtx.moveTo(cx,0); densCtx.lineTo(cx,h); densCtx.stroke();
-  }
-
-  // FILE
-  const scanPanel=$('scan-panel'), fileIn=$('fileIn');
-  scanPanel.addEventListener('click',()=>{if(!loadedImage){fileIn.value='';fileIn.click();}});
-  scanPanel.addEventListener('dragover',e=>{e.preventDefault();scanPanel.classList.add('drag-over');});
-  scanPanel.addEventListener('dragleave',()=>scanPanel.classList.remove('drag-over'));
-  scanPanel.addEventListener('drop',e=>{e.preventDefault();scanPanel.classList.remove('drag-over');if(e.dataTransfer.files.length)loadFile(e.dataTransfer.files[0]);});
-  fileIn.addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(f)loadFile(f);});
-
-  function loadFile(file) {
-    if (file.type && file.type.includes('heic') || /\.heic$/i.test(file.name||'')) {
-      setStatus('HEIC not supported — use a screenshot or JPG/PNG.','wrn');
-      return;
-    }
-    const reader=new FileReader();
-    reader.onerror=()=>setStatus('Could not read that image file.','wrn');
-    reader.onload=ev=>{
-      const img=new Image();
-      img.onerror=()=>setStatus('Image failed to load — try a JPG or PNG (iPhone HEIC won\u2019t scan).','wrn');
-      img.onload=()=>{
-        try{
-          loadedImage=img; scanPanel.classList.add('loaded');
-          scanCanvas.width=scanCanvas.clientWidth; scanCanvas.height=scanCanvas.clientHeight;
-          computeRect(); renderScan();
-          setStatus(`Analyzing ${img.naturalWidth}×${img.naturalHeight}...`,'inf');
-          setTimeout(()=>analyzeImage(img),20);
-        }catch(err){ setStatus('That image couldn\u2019t be scanned — try a JPG/PNG.','wrn'); }
-      };
-      img.src=ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  // UI EVENTS
-  $('btnEngage').addEventListener('click',async function(){
-    if(!compV.length&&!compH.length){setStatus('Load an image first.','wrn');return;}
-    if(!isPlaying){
-      // iOS: Tone.start() must run in the user gesture, BEFORE any other await.
-      if(typeof Tone!=='undefined'){ try{ await Tone.start(); toneStarted=true; }catch(e){} }
-      if(!audioCtx) initAudio();
-      if(audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch(e){} }
-      const now=Tone.now();
-      samplePulseNext = now; rhythmNext = now; leadPulseNext = now;
-      bassNext = now; padNext = now; bassMin = now; padMin = now;
-      lastBassNote = null; lastPadNote = null;
-      isPlaying=true;
-      this.innerText='■ TERMINATE'; this.classList.add('active');
-      $('sdot').classList.add('live'); $('stxt').innerText='SYS_ACTIVE';
-      setStatus('Composition engaged · looping','live');
-    } else {
-      isPlaying=false; releaseAll();
-      this.innerText='▶ ENGAGE'; this.classList.remove('active');
-      $('sdot').classList.remove('live'); $('stxt').innerText='SYS_IDLE';
-      setStatus('Scan terminated.','wrn');
+  Tone.Transport.stop();
+  pulseIndex = 0;
+  const prevNow = document.querySelector('.barcell.now');
+  if(prevNow) prevNow.classList.remove('now');
+  VKEYS.forEach(k=>{
+    const v = voiceData[k];
+    if(v.sampler && v.sampler.triggerRelease){
+      try{ v.sampler.triggerRelease(); }catch(e){}
     }
   });
-  $('btnReset').addEventListener('click',()=>{
-    isPlaying=false; releaseAll(); idxV=0; idxH=0;
-    $('btnEngage').innerText='▶ ENGAGE'; $('btnEngage').classList.remove('active');
-    $('sdot').classList.remove('live'); $('stxt').innerText='SYS_IDLE';
-    renderScan(); setStatus('Reset.','inf');
-  });
-  $('btnScale').addEventListener('click',function(){
-    const m=['AUTO','MAJOR','MINOR','DISSONANT'];
-    scaleMode=m[(m.indexOf(scaleMode)+1)%m.length];
-    this.innerText=`SCALE: ${scaleMode}`; setStatus(`Scale: ${scaleMode}`,'inf');
-  });
-  $('btnRec').addEventListener('click',()=>toggleRecording());
-  function setScanMode(mode){
-    scanMode=mode; idxV=0; idxH=0;
-    ['btnScanV','btnScanH','btnScanD'].forEach(id=>$(id).classList.remove('active'));
-    $({V:'btnScanV',H:'btnScanH',DUAL:'btnScanD'}[mode]).classList.add('active');
-    setStatus(`Scan: ${mode}`,'inf');
-  }
-  $('btnScanV').addEventListener('click',()=>setScanMode('V'));
-  $('btnScanH').addEventListener('click',()=>setScanMode('H'));
-  $('btnScanD').addEventListener('click',()=>setScanMode('DUAL'));
-  $('sldFreq').addEventListener('input',e=>{baseFreq=parseFloat(e.target.value);$('txtFreq').innerText=`${baseFreq} Hz`;});
-  $('sldGain').addEventListener('input',e=>{const g=parseFloat(e.target.value);$('txtGain').innerText=g.toFixed(2);if(masterGain){try{masterGain.gain.rampTo(g,0.02);}catch(err){}}});
-  $('sldSpeed').addEventListener('input',e=>{speedMul=parseFloat(e.target.value);$('txtSpeed').innerText=`${speedMul.toFixed(2)}x`;});
-  $('sldWheel').addEventListener('input',e=>{wheelRotation=parseFloat(e.target.value);$('txtWheel').innerText=`${Math.round(wheelRotation)}°`;});
-  $('sldRate').addEventListener('input',e=>{rhythmRate=parseFloat(e.target.value);rhythmRateBase=rhythmRate;$('txtRate').innerText=`${rhythmRate.toFixed(1)} Hz`;});
-  $('sldDepth').addEventListener('input',e=>{rhythmDepth=parseFloat(e.target.value);$('txtDepth').innerText=rhythmDepth.toFixed(2);});
+  $('dot').classList.remove('live');
+  $('stxt').textContent = 'IDLE';
+  $('btnPlay').classList.remove('on');
+  $('btnPlay').textContent = '▶ ENGAGE';
+  log('Stopped.','inf');
+}
 
-  VKEYS.forEach(key=>{
-    $('ib-'+key).addEventListener('click',()=>{
-      const cur=voices[key]?voices[key].instr:VINSTR[key];
-      const next=INSTR_TYPES[(INSTR_TYPES.indexOf(cur)+1)%INSTR_TYPES.length];
-      VINSTR[key]=next; $('ib-'+key).innerText=next;
-      $('vr-'+key).classList.toggle('off',next==='OFF');
-      if(voices[key]){voices[key].instr=next;if(audioCtx)buildSynth(key);}
+function log(msg, type='inf'){
+  $('log').innerHTML = msg;
+}
+
+// ============================================================
+// UI BUILD
+// ============================================================
+function buildVoiceUI(){
+  const container = $('voicesContainer');
+  VKEYS.forEach(k=>{
+    const v = VOICES[k];
+    const color = getComputedStyle(document.documentElement).getPropertyValue(v.color).trim();
+    const el = document.createElement('div');
+    el.className = 'voice';
+    el.style.borderColor = color;
+    el.innerHTML = `
+      <div class="vhead">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+          <input type="color" class="swatch" id="swatch-${k}" value="${v.hex}">
+          <span class="vname" style="color:${color}">${v.label}</span>
+        </div>
+        <span class="vnote" id="note-${k}" style="color:${color}">${noteForVoice(k)}</span>
+      </div>
+      <div class="vrow">
+        <button class="loadbtn" id="load-${k}">LOAD</button>
+        <span class="vsrc" id="src-${k}">no sample</span>
+      </div>
+      <div class="interval-ctrl">
+        <label class="intlbl" style="color:${color}">OFFSET</label>
+        <input type="range" class="sld" id="int-${k}" min="-24" max="24" step="1" value="0" style="color:${color}">
+        <span class="intval" id="intval-${k}" style="color:${color}">+0</span>
+      </div>
+      <div class="interval-ctrl">
+        <label class="intlbl" style="color:${color}">HITS/BAR</label>
+        <input type="range" class="sld" id="hits-${k}" min="1" max="16" step="1" value="${voiceData[k].hitsPerBar}" style="color:${color}">
+        <span class="intval" id="hitsval-${k}" style="color:${color}">${voiceData[k].hitsPerBar}</span>
+      </div>
+      <div class="interval-ctrl">
+        <label class="intlbl" style="color:${color}">SKIP %</label>
+        <input type="range" class="sld" id="skip-${k}" min="0" max="100" step="5" value="${voiceData[k].skipProb}" style="color:${color}">
+        <span class="intval" id="skipval-${k}" style="color:${color}">${voiceData[k].skipProb}%</span>
+      </div>
+      <input type="file" id="file-${k}" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
+    `;
+    container.appendChild(el);
+
+    $('swatch-'+k).addEventListener('input', e=>{
+      const {hue} = hexHSV(e.target.value);
+      voiceData[k].hue = hue;
+      $('note-'+k).textContent = noteForVoice(k);
+      rebuildPattern();
     });
-    // SMP: tap to load a sound; tap again while loaded to clear back to synth
-    $('smp-'+key).addEventListener('click',()=>{
-      if (voices[key] && voices[key].sampler) { clearSample(key); return; }
-      // wake Tone's context inside the gesture, then open the picker (both sync)
-      if (typeof Tone!=='undefined' && !toneStarted){ Tone.start().then(()=>{toneStarted=true;}).catch(()=>{}); }
-      const inp = $('file-'+key);
-      inp.value = '';        // <- a stale value means `change` never fires on a re-pick
-      inp.click();
+
+    $('load-'+k).addEventListener('click', ()=>{
+      // Wake the context inside this click, not after the picker returns —
+      // the tap on LOAD is the trusted gesture; the change event that
+      // follows the native picker isn't guaranteed to still count as one.
+      if(typeof Tone !== 'undefined'){ Tone.start().catch(()=>{}); }
+      const fi = $('file-'+k);
+      fi.value = '';
+      fi.click();
     });
-    $('file-'+key).addEventListener('change',e=>{
+    $('file-'+k).addEventListener('change', e=>{
       const f = e.target.files && e.target.files[0];
-      e.target.value = '';   // <- clear immediately so the SAME file can be picked again
-      if (f) loadSample(key, f);
+      e.target.value = '';  // reset now too, so picking the SAME file again still fires change
+      if(f) loadSample(k, f);
     });
-    $('vl-'+key).addEventListener('input',e=>{
-      const val=parseFloat(e.target.value); $('vv-'+key).innerText=val.toFixed(2);
-      VLEVEL[key]=val; if(voices[key])voices[key].levelMul=val;
+    $('int-'+k).addEventListener('input', e=>{
+      const val = parseInt(e.target.value);
+      voiceData[k].interval = val;
+      $('intval-'+k).textContent = (val>=0?'+':'')+val;
+      $('note-'+k).textContent = noteForVoice(k);
     });
-    $('tp-'+key).addEventListener('input',e=>{
-      const val=parseInt(e.target.value); $('tv-'+key).innerText=(val>=0?'+':'')+val;
-      VTRANS[key]=val;
+    $('hits-'+k).addEventListener('input', e=>{
+      const val = parseInt(e.target.value);
+      voiceData[k].hitsPerBar = val;
+      $('hitsval-'+k).textContent = val;
+      rebuildPattern();
+    });
+    $('skip-'+k).addEventListener('input', e=>{
+      const val = parseInt(e.target.value);
+      voiceData[k].skipProb = val;
+      $('skipval-'+k).textContent = val+'%';
     });
   });
+}
 
-  document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();$('btnEngage').click();}});
+// ============================================================
+// WINDOW LOAD
+// ============================================================
+window.addEventListener('load', ()=>{
+  buildVoiceUI();
+  rebuildPattern();
 
-  function mainLoop() {
-    if(isPlaying){
-      const vi=Math.floor(idxV),hi=Math.floor(idxH);
-      const mV=compV.length?compV[Math.min(vi,compV.length-1)]:null;
-      const mH=compH.length?compH[Math.min(hi,compH.length-1)]:null;
-      const mp=(scanMode==='H')?mH:mV;
-      if(mp){
-        $('valLum').innerText=mp.luminance.toFixed(3); $('valTemp').innerText=mp.colorTemp.toFixed(3);
-        $('valEdge').innerText=mp.edgeDensity.toFixed(3); $('valStrong').innerText=mp.strongEdges.toFixed(3);
-        $('valSat').innerText=mp.saturation.toFixed(3); $('valContrast').innerText=mp.contrast.toFixed(3);
-        $('valSym').innerText=mp.symmetry.toFixed(3);
-        $('valPos').innerText = scanMode==='DUAL'? `${vi}/${compV.length}|${hi}/${compH.length}` : 
-                               (scanMode==='H'? `${hi}/${compH.length}`:`${vi}/${compV.length}`);
-        let active=0; VKEYS.forEach(k=>{const v=voices[k]; if(v&&(v.sampler||v.instr!=='OFF'))active++;});
-        $('valVox').innerText=active;
-      }
-      updateSynth(scanMode==='H'?null:mV, scanMode==='V'?null:mH);
-      if(scanMode!=='H'&&compV.length){idxV+=speedMul;if(idxV>=compV.length)idxV=0;}
-      if(scanMode!=='V'&&compH.length){idxH+=speedMul;if(idxH>=compH.length)idxH=0;}
+  $('sBarLen').addEventListener('input', e=>{
+    barLength = parseInt(e.target.value);
+    $('vBarLen').textContent = barLength;
+    rebuildPattern();
+  });
+
+  $('sBPM').addEventListener('input', e=>{
+    bpm = parseInt(e.target.value);
+    $('vBPM').textContent = bpm;
+    if(playing){
+      Tone.Transport.bpm.value = bpm;
+      scheduleLoop();
     }
-    renderScan(); renderOsc(); renderSpectrum(); renderDensity();
-    requestAnimationFrame(mainLoop);
-  }
+  });
 
-  function init() {
-    resizeAll(); window.addEventListener('resize',resizeAll);
-    setStatus('Engine ready. Load an image.','ok');
-    requestAnimationFrame(mainLoop);
+  $('sRate').addEventListener('input', e=>{
+    pulseRate = parseFloat(e.target.value);
+    $('vRate').textContent = pulseRate;
+    if(playing) scheduleLoop();
+  });
+
+  $('sGain').addEventListener('input', e=>{
+    const g = parseFloat(e.target.value);
+    $('vGain').textContent = g.toFixed(2);
+    if(master) master.gain.rampTo(g, 0.03);
+  });
+
+  $('sScan').addEventListener('input', e=>{
+    scanSpeed = parseFloat(e.target.value);
+    $('vScan').textContent = scanSpeed > 0 ? scanSpeed.toFixed(1)+' °/pulse' : 'OFF';
+  });
+
+  $('btnPlay').addEventListener('click', ()=>{
+    playing ? stop() : engage();
+  });
+
+  if(typeof Tone === 'undefined'){
+    log('Tone.js failed to load.','wrn');
+  }else{
+    initAudio();
   }
-  window.addEventListener('load',init);
-})();
+});
 </script>
 </body>
 </html>
