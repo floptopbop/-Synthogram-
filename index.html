@@ -52,7 +52,6 @@
     color:var(--bright);border-radius:3px;font:inherit;font-size:11px;cursor:pointer;
     text-transform:uppercase;letter-spacing:.05em;}
   .recbtn:active{background:#1c1c22;}
-  .recbtn.armed{border-color:#f59e0b;color:#f59e0b;}
   .recbtn.recording{background:#ef4444;border-color:#ef4444;color:#fff;animation:recpulse 1s infinite;}
   .recbtn.hasseq{background:#1c1c22;border-color:currentColor;}
   @keyframes recpulse{0%,100%{opacity:1;}50%{opacity:.5;}}
@@ -131,7 +130,7 @@
     <input type="range" class="sld" id="sBPM" min="40" max="240" step="1" value="120">
 
     <div class="srow"><label>Trigger rate (pulses/beat)</label><span class="sv" id="vRate">2</span></div>
-    <input type="range" class="sld" id="sRate" min="0.5" max="10" step="0.5" value="2">
+    <input type="range" class="sld" id="sRate" min="0.5" max="8" step="0.5" value="2">
 
     <div class="srow"><label>Master gain</label><span class="sv" id="vGain">0.60</span></div>
     <input type="range" class="sld" id="sGain" min="0" max="1" step="0.02" value="0.6">
@@ -149,7 +148,7 @@
 <script>
 const MIDINAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const hueToNote = h => ((Math.round(h/30) % 12) + 12) % 12;
-// MIDI 60 = C3, matching the sampler's "C3" anchor.
+// MIDI 60 = C4, matching the sampler's "C4" anchor.
 const midiToName = m => MIDINAMES[((m%12)+12)%12] + (Math.floor(m/12) - 1);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const $ = id => document.getElementById(id);
@@ -183,9 +182,10 @@ VKEYS.forEach(k=>{
     hitsPerBar: DEFAULT_HITS[k] || 4, // polyrhythm: hits spread across the shared bar
     skipProb: 0,                      // % chance a scheduled hit is skipped
     _hitSet: null,                    // cached Set of pulse indices this voice fires on
-    recState: 'off',                  // 'off' | 'armed' | 'recording'
+    recState: 'off',                  // 'off' | 'recording'
     colorSeq: null,                   // recorded per-pulse hue array, one bar long, once recorded
-    _recBuf: null,                    // in-progress capture buffer while recording
+    _recBuf: null,                    // rolling capture buffer while recording (last pass wins)
+    _recTouched: false,               // did any color motion actually happen during this take
   };
 });
 
@@ -358,9 +358,10 @@ async function loadSample(key, file){
 function noteForVoice(key, idx){
   const v = voiceData[key];
   let hue = v.hue;
-  const recording = (v.recState === 'armed' || v.recState === 'recording');
-  if(idx !== undefined && !recording && v.colorSeq && v.colorSeq[idx] != null){
-    hue = v.colorSeq[idx];
+  const recording = (v.recState === 'recording');
+  if(idx !== undefined && !recording && v.colorSeq && v.colorSeq.length){
+    const h = v.colorSeq[idx % v.colorSeq.length];
+    if(h != null) hue = h;
   }
   const rootIdx = hueToNote(hue);
   const rootMidi = 60 + rootIdx;
@@ -434,23 +435,35 @@ function renderRecButton(k){
   const v = voiceData[k];
   const btn = $('rec-'+k);
   if(!btn) return;
-  btn.classList.remove('armed','recording','hasseq');
-  if(v.recState === 'armed'){ btn.classList.add('armed'); btn.textContent = 'ARMED'; }
-  else if(v.recState === 'recording'){ btn.classList.add('recording'); btn.textContent = '\u25CF REC'; }
+  btn.classList.remove('recording','hasseq');
+  if(v.recState === 'recording'){ btn.classList.add('recording'); btn.textContent = '\u25CF REC'; }
   else if(v.colorSeq){ btn.classList.add('hasseq'); btn.textContent = 'SEQ'; }
   else{ btn.textContent = 'REC'; }
+}
+
+// Stop a take. If the color actually moved, keep the buffer (last full bar
+// of performance, since every pass overwrites); if nothing moved, discard —
+// so a tap-tap "never mind" backs out clean instead of saving a flat bar.
+function endRecording(k){
+  const v = voiceData[k];
+  if(v.recState !== 'recording') return;
+  if(v._recTouched && v._recBuf){
+    v.colorSeq = v._recBuf.slice();
+    log(`<b>${VOICES[k].label}</b> — kept the last bar. Looping it now.`,'ok');
+  }else{
+    log(`<b>${VOICES[k].label}</b> — no color moves, take discarded.`,'inf');
+  }
+  v._recBuf = null;
+  v._recTouched = false;
+  v.recState = 'off';
+  renderRecButton(k);
 }
 
 function toggleRecord(k){
   const v = voiceData[k];
 
-  if(v.recState === 'armed' || v.recState === 'recording'){
-    v.recState = 'off';
-    v._recBuf = null;
-    renderRecButton(k);
-    log(`<b>${VOICES[k].label}</b> recording cancelled.`,'inf');
-    return;
-  }
+  if(v.recState === 'recording'){ endRecording(k); return; }
+
   if(v.colorSeq){
     v.colorSeq = null;
     renderRecButton(k);
@@ -461,10 +474,18 @@ function toggleRecord(k){
     log('Engage the engine first, then hit REC.','wrn');
     return;
   }
-  v.recState = 'armed';
-  v._recBuf = new Array(barLength).fill(null);
+  // Start immediately — no waiting for the bar line. The buffer is seeded
+  // with the current hue and every pulse overwrites its own slot, so the
+  // take is always the LAST bar you performed, not the first one you
+  // fumbled through while opening the picker.
+  v._recBuf = new Array(barLength).fill(v.hue);
+  v._recTouched = false;
+  v.recState = 'recording';
   renderRecButton(k);
-  log(`<b>${VOICES[k].label}</b> armed — recording starts at the next bar. Drag its swatch to draw the sequence.`,'inf');
+  // Pop this voice's color picker open in the same trusted tap, so
+  // REC -> perform is one motion instead of two.
+  try{ $('swatch-'+k).click(); }catch(e){}
+  log(`<b>${VOICES[k].label}</b> recording — ride the color. Tap \u25CF REC when the last bar sounds right.`,'inf');
 }
 
 // ============================================================
@@ -483,21 +504,13 @@ function scheduleLoop(){
       VKEYS.forEach(k=>{ voiceData[k].hue = (voiceData[k].hue + scanSpeed) % 360; });
     }
 
-    // Arm -> capture -> finalize, per voice, independently.
+    // Rolling capture: every pulse overwrites its own slot with the live
+    // hue, so the buffer always holds the most recent full bar performed.
     VKEYS.forEach(k=>{
       const v = voiceData[k];
-      if(v.recState === 'armed' && idx === 0){
-        v.recState = 'recording';
-        Tone.Draw.schedule(()=>renderRecButton(k), time);
-      }
-      if(v.recState === 'recording'){
+      if(v.recState === 'recording' && v._recBuf){
         v._recBuf[idx] = v.hue;
-        if(idx === barLength - 1){
-          v.colorSeq = v._recBuf.slice();
-          v._recBuf = null;
-          v.recState = 'off';
-          Tone.Draw.schedule(()=>renderRecButton(k), time);
-        }
+        if(scanSpeed > 0) v._recTouched = true;  // scan drift is motion too
       }
     });
 
@@ -507,11 +520,11 @@ function scheduleLoop(){
       VKEYS.forEach(k=>{
         const v = voiceData[k];
         $('note-'+k).textContent = noteForVoice(k, idx);
-        // Never overwrite the swatch a user is actively dragging mid-record;
+        // Never overwrite the swatch a user is actively dragging mid-take;
         // otherwise reflect whatever hue is actually driving this voice.
-        const recording = (v.recState === 'armed' || v.recState === 'recording');
-        if(!recording && (scanSpeed > 0 || v.colorSeq)){
-          const hue = (v.colorSeq && v.colorSeq[idx] != null) ? v.colorSeq[idx] : v.hue;
+        if(v.recState !== 'recording' && (scanSpeed > 0 || (v.colorSeq && v.colorSeq.length))){
+          const seqHue = (v.colorSeq && v.colorSeq.length) ? v.colorSeq[idx % v.colorSeq.length] : null;
+          const hue = (seqHue != null) ? seqHue : v.hue;
           const sw = $('swatch-'+k);
           if(sw) sw.value = hsvHex(hue);
         }
@@ -555,11 +568,9 @@ function stop(){
     if(v.sampler && v.sampler.triggerRelease){
       try{ v.sampler.triggerRelease(); }catch(e){}
     }
-    if(v.recState !== 'off'){
-      v.recState = 'off';
-      v._recBuf = null;
-      renderRecButton(k);
-    }
+    // Stopping the engine mid-take keeps the last performed bar rather
+    // than trashing it — same rule as tapping ● REC.
+    if(v.recState === 'recording') endRecording(k);
   });
   $('dot').classList.remove('live');
   $('stxt').textContent = 'IDLE';
@@ -618,6 +629,7 @@ function buildVoiceUI(){
     $('swatch-'+k).addEventListener('input', e=>{
       const {hue} = hexHSV(e.target.value);
       voiceData[k].hue = hue;
+      if(voiceData[k].recState === 'recording') voiceData[k]._recTouched = true;
       $('note-'+k).textContent = noteForVoice(k);
       rebuildPattern();
     });
