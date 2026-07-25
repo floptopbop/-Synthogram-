@@ -96,6 +96,7 @@
   .btn:active{background:#1c1c22;}
   .btn.play{font-weight:700;}
   .btn.play.on{background:#ef4444;border-color:#ef4444;color:#fff;}
+  #btnRecAll.on{background:#ef4444;border-color:#ef4444;color:#fff;font-weight:700;}
 
   #log{font-size:9px;color:#a1a1aa;padding:8px 2px 0;border-top:1px solid var(--border);
     margin-top:8px;min-height:16px;}
@@ -111,7 +112,7 @@
 
   <!-- VOICE SAMPLES -->
   <div class="panel">
-    <div class="lbl">Voices · sample · swatch = pitch · pattern per voice</div>
+    <div class="lbl">Voices · color = chord · hue root · sat density · value octave</div>
     <div id="voicesContainer"></div>
   </div>
 
@@ -127,7 +128,7 @@
   <div class="panel">
     <div class="lbl">Engine</div>
     <div class="srow"><label>BPM / Clock rate</label><span class="sv" id="vBPM">120</span></div>
-    <input type="range" class="sld" id="sBPM" min="10" gmax="80" step="1" value="120">
+    <input type="range" class="sld" id="sBPM" min="40" max="240" step="1" value="120">
 
     <div class="srow"><label>Trigger rate (pulses/beat)</label><span class="sv" id="vRate">2</span></div>
     <input type="range" class="sld" id="sRate" min="0.5" max="8" step="0.5" value="2">
@@ -138,8 +139,12 @@
     <div class="srow"><label>Scan hue</label><span class="sv" id="vScan">OFF</span></div>
     <input type="range" class="sld" id="sScan" min="0" max="60" step="1" value="0">
 
+    <div class="srow"><label>Harmony</label><span class="sv" id="vScale">CHROMATIC</span></div>
+    <div class="btnrow"><button class="btn" id="btnScale">&#9671; CHROMATIC STACK</button></div>
+
     <div class="btnrow" style="margin-top:12px;">
       <button class="btn play" id="btnPlay">▶ ENGAGE</button>
+      <button class="btn" id="btnRecAll">● REC ALL</button>
     </div>
     <div id="log">Ready. Load samples, set pattern, then ENGAGE.</div>
   </div>
@@ -165,25 +170,52 @@ const VKEYS = Object.keys(VOICES);
 // still land on the same pulses even with the polyrhythm engine in place.
 const DEFAULT_HITS = { v1:4, v2:3, v3:5, v4:2 };
 
-let master, ready=false, playing=false;
+let master, reverb, ready=false, playing=false;
 let loopHandle=null;
 let bpm=120, pulseRate=2, scanSpeed=0;
 let barLength=16, pulseIndex=0;
+let scaleLock=false;                 // false = chromatic-stacked (default), true = snap to C major
+
+// CHORD ENGINE ------------------------------------------------
+const STRUM = 0.008;                 // seconds between chord notes -> tiny humanized spread, kills phase-mud
+const STACK = [0,4,7,11,14,18,21];   // tertian stack off the root: R M3 P5 M7 M9 #11 M13
+// SATURATION picks how tall the stack is -> pale = open/ambiguous, vivid = dense/tense
+function chordShape(sat){
+  if(sat < 0.20) return [0,7];         // open fifth
+  if(sat < 0.45) return [0,4,7];       // triad
+  if(sat < 0.70) return [0,4,7,11];    // 7th
+  if(sat < 0.88) return [0,4,7,11,14]; // 9th
+  return [0,4,7,11,14,18];             // #11
+}
+const QUALITY = {2:'5',3:'\u25B3',4:'7',5:'9',6:'\u246A'}; // 5 · △ · 7 · 9 · ⑪
+const SCALE = [0,2,4,5,7,9,11];      // C major, used only when scaleLock is on
+function snapMidi(m){
+  if(!scaleLock) return m;
+  const pc=((m%12)+12)%12, oct=Math.floor(m/12);
+  let best=SCALE[0], bd=99;
+  for(const s of SCALE){ const d=Math.abs(s-pc); if(d<bd){bd=d;best=s;} }
+  return oct*12 + best;
+}
 
 // VOICE STATE
 let voiceData = {};
 VKEYS.forEach(k=>{
+  const _hsv = hexHSV(VOICES[k].hex);
   voiceData[k] = {
     file: null,
     sampler: null,
     vol: null,                        // per-voice Tone.Gain, created in initAudio()
-    interval: 0,                      // semitone offset from this voice's own color-note
-    hue: hexHSV(VOICES[k].hex).hue,   // this voice's own pitch color
+    send: null,                       // per-voice reverb-send Gain, created in initAudio()
+    sendAmt: 0.2,                     // how much of this voice goes to the shared reverb glue
+    interval: 0,                      // semitone offset applied to the whole chord
+    hue: _hsv.hue,                    // HUE -> chord root
+    sat: _hsv.sat,                    // SATURATION -> chord density (open5 -> triad -> 7 -> 9 -> 11)
+    val: _hsv.val,                    // VALUE -> octave register of the voicing
     hitsPerBar: DEFAULT_HITS[k] || 4, // polyrhythm: hits spread across the shared bar
     skipProb: 0,                      // % chance a scheduled hit is skipped
     _hitSet: null,                    // cached Set of pulse indices this voice fires on
     recState: 'off',                  // 'off' | 'recording'
-    colorSeq: null,                   // recorded per-pulse hue array, one bar long, once recorded
+    colorSeq: null,                   // recorded per-pulse {h,s,v} array, one bar long -> a chord progression
     _recBuf: null,                    // rolling capture buffer while recording (last pass wins)
     _recTouched: false,               // did any color motion actually happen during this take
   };
@@ -228,12 +260,21 @@ function initAudio(){
   master.connect(limiter);
   limiter.toDestination();
 
+  // One shared reverb bus glues the four voices into a single space instead
+  // of four dry, unrelated blips. Each voice sends a little of itself here.
+  reverb = new Tone.Reverb({ decay: 2.4, preDelay: 0.02, wet: 1 });
+  reverb.connect(master);
+
   // Per-voice volume: one persistent Gain node per voice, connected to
-  // master. Samplers connect to their own voice's gain instead of master
-  // directly, so reloading a sample never resets the fader.
+  // master (dry) and to the reverb bus (wet). Samplers connect to their own
+  // voice's gain, so reloading a sample never resets the fader or the send.
   VKEYS.forEach(k=>{
-    voiceData[k].vol = new Tone.Gain(1);
-    voiceData[k].vol.connect(master);
+    const vd = voiceData[k];
+    vd.vol = new Tone.Gain(1);
+    vd.vol.connect(master);
+    vd.send = new Tone.Gain(vd.sendAmt);
+    vd.vol.connect(vd.send);
+    vd.send.connect(reverb);
   });
 
   ready=true;
@@ -338,7 +379,7 @@ async function loadSample(key, file){
     const src = $('src-'+key);
     src.textContent = file.name;
     src.classList.add('loaded');
-    $('note-'+key).textContent = noteForVoice(key);
+    $('note-'+key).textContent = voiceReadout(key);
     log(`<b>${VOICES[key].label}</b> loaded: ${file.name} · ${audioBuffer.duration.toFixed(1)}s`,'ok');
 
   }catch(err){
@@ -351,22 +392,30 @@ async function loadSample(key, file){
 // ============================================================
 // NOTE CALCULATION
 // ============================================================
-// Each voice's own hue is its own root; OFFSET fine-tunes from there.
-// idx is the current pulse within the bar -- when a color sequence has
-// been recorded, it takes over from the static swatch at that pulse,
-// except while actively arming/recording (live dragging always wins then).
-function noteForVoice(key, idx){
+// Turn a voice's current colour (or its recorded colour at pulse idx) into a
+// whole chord: HUE -> root, SATURATION -> density, VALUE -> octave register.
+// A recorded colorSeq takes over per-pulse except while actively recording
+// (live dragging always wins then).
+function chordForVoice(key, idx){
   const v = voiceData[key];
-  let hue = v.hue;
+  let h=v.hue, s=v.sat, val=v.val;
   const recording = (v.recState === 'recording');
   if(idx !== undefined && !recording && v.colorSeq && v.colorSeq.length){
-    const h = v.colorSeq[idx % v.colorSeq.length];
-    if(h != null) hue = h;
+    const c = v.colorSeq[idx % v.colorSeq.length];
+    if(c){ h=c.h; s=c.s; val=c.v; }
   }
-  const rootIdx = hueToNote(hue);
-  const rootMidi = 60 + rootIdx;
-  const voiceMidi = rootMidi + v.interval;
-  return midiToName(voiceMidi);
+  const rootIdx  = hueToNote(h);
+  const octShift = Math.round((val - 0.5) * 2);            // dark -> -1, mid -> 0, bright -> +1 octave
+  const rootMidi = 60 + rootIdx + v.interval + octShift*12;
+  const shape    = chordShape(s);
+  const notes    = shape.map(iv => midiToName(snapMidi(rootMidi + iv)));
+  return { notes, rootName: midiToName(snapMidi(rootMidi)), label: QUALITY[shape.length] || '' };
+}
+
+// Short tag for the readout, e.g. "C7", "E△", "G9".
+function voiceReadout(key, idx){
+  const c = chordForVoice(key, idx);
+  return c.rootName.replace(/-?\d+$/,'') + c.label;
 }
 
 // ============================================================
@@ -395,7 +444,7 @@ function rebuildPattern(){
       if(voiceData[k]._hitSet.has(i)){
         const dot = document.createElement('div');
         dot.className = 'bardot';
-        dot.style.background = hsvHex(voiceData[k].hue);
+        dot.style.background = hsvHex(voiceData[k].hue, voiceData[k].sat, voiceData[k].val);
         cell.appendChild(dot);
       }
     });
@@ -419,9 +468,12 @@ function triggerPulse(idx, time){
     if(!v.sampler || !v.sampler.loaded) return;
     if(!v._hitSet || !v._hitSet.has(idx)) return;               // not this voice's pulse
     if(v.skipProb > 0 && Math.random()*100 < v.skipProb) return; // probability skip
-    const note = noteForVoice(k, idx);
+    const { notes } = chordForVoice(k, idx);
+    const vel = 1 / Math.sqrt(notes.length);  // compensate: dense chords don't get louder than single notes
     try{
-      v.sampler.triggerAttackRelease(note, '8n', time);
+      // Micro-strum: nudge each chord note a few ms later so stacking the
+      // same sample against itself gives body instead of a combed transient.
+      notes.forEach((n,i)=> v.sampler.triggerAttackRelease(n, '8n', time + i*STRUM, vel));
     }catch(e){
       console.error('Trigger failed:', e);
     }
@@ -457,6 +509,18 @@ function endRecording(k){
   v._recTouched = false;
   v.recState = 'off';
   renderRecButton(k);
+  updateRecAllBtn();
+}
+
+// Arm one voice for recording (seed its rolling buffer) WITHOUT opening a
+// picker — so several voices can be armed together and driven by one gesture.
+function armRecord(k){
+  const v = voiceData[k];
+  if(v.recState === 'recording') return;
+  v._recBuf = new Array(barLength).fill(0).map(()=>({h:v.hue, s:v.sat, v:v.val}));
+  v._recTouched = false;
+  v.recState = 'recording';
+  renderRecButton(k);
 }
 
 function toggleRecord(k){
@@ -475,17 +539,42 @@ function toggleRecord(k){
     return;
   }
   // Start immediately — no waiting for the bar line. The buffer is seeded
-  // with the current hue and every pulse overwrites its own slot, so the
-  // take is always the LAST bar you performed, not the first one you
-  // fumbled through while opening the picker.
-  v._recBuf = new Array(barLength).fill(v.hue);
-  v._recTouched = false;
-  v.recState = 'recording';
-  renderRecButton(k);
-  // Pop this voice's color picker open in the same trusted tap, so
-  // REC -> perform is one motion instead of two.
+  // with the current colour and every pulse overwrites its own slot, so the
+  // take is always the LAST bar you performed. Riding ANY swatch while more
+  // than one voice is armed writes into every armed voice at once.
+  armRecord(k);
   try{ $('swatch-'+k).click(); }catch(e){}
-  log(`<b>${VOICES[k].label}</b> recording — ride the color. Tap \u25CF REC when the last bar sounds right.`,'inf');
+  updateRecAllBtn();
+  log(`<b>${VOICES[k].label}</b> recording — ride the color. Arm more voices to record them together.`,'inf');
+}
+
+// ---- GROUP RECORD ------------------------------------------------
+// Reflect on the master button whether a take is in progress.
+function updateRecAllBtn(){
+  const btn = $('btnRecAll');
+  if(!btn) return;
+  const anyRec = VKEYS.some(k=>voiceData[k].recState === 'recording');
+  btn.classList.toggle('on', anyRec);
+  btn.innerHTML = anyRec ? '\u25A0 KEEP TAKE' : '\u25CF REC ALL';
+}
+
+function toggleRecordAll(){
+  if(!playing){ log('Engage first, then REC ALL.','wrn'); return; }
+  const recording = VKEYS.filter(k=>voiceData[k].recState === 'recording');
+  if(recording.length){
+    // Commit every armed voice's last bar in one move.
+    recording.forEach(k=>endRecording(k));
+    updateRecAllBtn();
+    return;
+  }
+  // Arm all loaded voices (or all four if nothing's loaded yet), then pop ONE
+  // performance picker. Broadcast (in the swatch handler) drives the rest.
+  const loaded = VKEYS.filter(k=>voiceData[k].sampler && voiceData[k].sampler.loaded);
+  const targets = loaded.length ? loaded : VKEYS.slice();
+  targets.forEach(k=>armRecord(k));
+  updateRecAllBtn();
+  try{ $('swatch-'+targets[0]).click(); }catch(e){}
+  log(`Recording ${targets.length} voices together — ride any swatch, all armed voices follow. REC ALL again to keep the bar.`,'inf');
 }
 
 // ============================================================
@@ -509,7 +598,7 @@ function scheduleLoop(){
     VKEYS.forEach(k=>{
       const v = voiceData[k];
       if(v.recState === 'recording' && v._recBuf){
-        v._recBuf[idx] = v.hue;
+        v._recBuf[idx] = {h:v.hue, s:v.sat, v:v.val};
         if(scanSpeed > 0) v._recTouched = true;  // scan drift is motion too
       }
     });
@@ -519,14 +608,14 @@ function scheduleLoop(){
       markPulse(idx);
       VKEYS.forEach(k=>{
         const v = voiceData[k];
-        $('note-'+k).textContent = noteForVoice(k, idx);
+        $('note-'+k).textContent = voiceReadout(k, idx);
         // Never overwrite the swatch a user is actively dragging mid-take;
-        // otherwise reflect whatever hue is actually driving this voice.
+        // otherwise reflect whatever colour is actually driving this voice.
         if(v.recState !== 'recording' && (scanSpeed > 0 || (v.colorSeq && v.colorSeq.length))){
-          const seqHue = (v.colorSeq && v.colorSeq.length) ? v.colorSeq[idx % v.colorSeq.length] : null;
-          const hue = (seqHue != null) ? seqHue : v.hue;
+          const c = (v.colorSeq && v.colorSeq.length) ? v.colorSeq[idx % v.colorSeq.length] : null;
+          const h = c ? c.h : v.hue, s = c ? c.s : v.sat, val = c ? c.v : v.val;
           const sw = $('swatch-'+k);
-          if(sw) sw.value = hsvHex(hue);
+          if(sw) sw.value = hsvHex(h, s, val);
         }
       });
     }, time);
@@ -600,7 +689,7 @@ function buildVoiceUI(){
         <span class="vname" style="color:${color}">${v.label}</span>
         <input type="range" class="sld" id="vol-${k}" min="0" max="1" step="0.02" value="1" style="color:${color}">
         <span class="intval" id="volval-${k}" style="color:${color}">100%</span>
-        <span class="vnote" id="note-${k}" style="color:${color}">${noteForVoice(k)}</span>
+        <span class="vnote" id="note-${k}" style="color:${color}">${voiceReadout(k)}</span>
       </div>
       <div class="vrow">
         <button class="loadbtn" id="load-${k}">LOAD</button>
@@ -622,15 +711,28 @@ function buildVoiceUI(){
         <input type="range" class="sld" id="skip-${k}" min="0" max="100" step="5" value="${voiceData[k].skipProb}" style="color:${color}">
         <span class="intval" id="skipval-${k}" style="color:${color}">${voiceData[k].skipProb}%</span>
       </div>
+      <div class="interval-ctrl">
+        <label class="intlbl" style="color:${color}">SEND</label>
+        <input type="range" class="sld" id="send-${k}" min="0" max="1" step="0.02" value="${voiceData[k].sendAmt}" style="color:${color}">
+        <span class="intval" id="sendval-${k}" style="color:${color}">${Math.round(voiceData[k].sendAmt*100)}%</span>
+      </div>
       <input type="file" id="file-${k}" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
     `;
     container.appendChild(el);
 
     $('swatch-'+k).addEventListener('input', e=>{
-      const {hue} = hexHSV(e.target.value);
-      voiceData[k].hue = hue;
-      if(voiceData[k].recState === 'recording') voiceData[k]._recTouched = true;
-      $('note-'+k).textContent = noteForVoice(k);
+      const {hue,sat,val} = hexHSV(e.target.value);
+      // If more than one voice is armed, one gesture drives the whole group:
+      // whatever swatch you ride writes into every recording voice at once.
+      const rec = VKEYS.filter(x=>voiceData[x].recState === 'recording');
+      const targets = (rec.length > 1) ? Array.from(new Set([k, ...rec])) : [k];
+      targets.forEach(x=>{
+        const vv = voiceData[x];
+        vv.hue = hue; vv.sat = sat; vv.val = val;
+        if(vv.recState === 'recording') vv._recTouched = true;
+        $('note-'+x).textContent = voiceReadout(x);
+        if(x !== k){ const sw = $('swatch-'+x); if(sw) sw.value = e.target.value; }
+      });
       rebuildPattern();
     });
 
@@ -660,7 +762,7 @@ function buildVoiceUI(){
       const val = parseInt(e.target.value);
       voiceData[k].interval = val;
       $('intval-'+k).textContent = (val>=0?'+':'')+val;
-      $('note-'+k).textContent = noteForVoice(k);
+      $('note-'+k).textContent = voiceReadout(k);
     });
     $('hits-'+k).addEventListener('input', e=>{
       const val = parseInt(e.target.value);
@@ -672,6 +774,12 @@ function buildVoiceUI(){
       const val = parseInt(e.target.value);
       voiceData[k].skipProb = val;
       $('skipval-'+k).textContent = val+'%';
+    });
+    $('send-'+k).addEventListener('input', e=>{
+      const val = parseFloat(e.target.value);
+      voiceData[k].sendAmt = val;
+      $('sendval-'+k).textContent = Math.round(val*100)+'%';
+      if(voiceData[k].send) voiceData[k].send.gain.rampTo(val, 0.03);
     });
   });
 }
@@ -714,6 +822,16 @@ window.addEventListener('load', ()=>{
     scanSpeed = parseFloat(e.target.value);
     $('vScan').textContent = scanSpeed > 0 ? scanSpeed.toFixed(1)+' °/pulse' : 'OFF';
   });
+
+  $('btnScale').addEventListener('click', ()=>{
+    scaleLock = !scaleLock;
+    $('vScale').textContent = scaleLock ? 'SCALE · C' : 'CHROMATIC';
+    $('btnScale').innerHTML = scaleLock ? '\u25C6 SCALE LOCK (C)' : '\u25C7 CHROMATIC STACK';
+    VKEYS.forEach(k=> $('note-'+k).textContent = voiceReadout(k));
+    rebuildPattern();
+  });
+
+  $('btnRecAll').addEventListener('click', toggleRecordAll);
 
   $('btnPlay').addEventListener('click', ()=>{
     playing ? stop() : engage();
