@@ -2,847 +2,703 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>AXIOM-OS // SAMPLE VOICES</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>watercolor — slow depletion + splatter</title>
 <style>
-  :root{
-    --bg:#09090b; --card:#141417; --border:#27272a; --muted:#71717a; --bright:#f4f4f5;
-    --v1:#3b82f6; --v2:#10b981; --v3:#f59e0b; --v4:#ffe600;
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100dvh;
+    background:#c8c3b8;
+    overflow:hidden; user-select:none; -webkit-user-select:none; touch-action:none;
   }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:var(--bg);color:var(--bright);
-    font-family:"Share Tech Mono","SFMono-Regular",Consolas,monospace;
-    font-size:13px;min-height:100vh;-webkit-text-size-adjust:100%;}
-  #app{max-width:540px;margin:0 auto;padding:12px 12px 40px;}
-  header{display:flex;align-items:center;justify-content:space-between;
-    padding:6px 2px 12px;border-bottom:1px solid var(--border);margin-bottom:12px;}
-  .sys-tag{font-weight:700;letter-spacing:.08em;font-size:12px;}
-  .sys-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);}
-  .dot{width:6px;height:6px;border-radius:50%;background:#666;transition:all 0.2s;}
-  .dot.live{background:#ff0;box-shadow:0 0 8px #ff0;}
-  .panel{background:var(--card);border:1px solid var(--border);border-radius:4px;
-    padding:10px;margin-bottom:10px;}
-  .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
-    font-weight:700;margin-bottom:8px;}
+  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #tray {
+    position:fixed; left:0; right:0; bottom:0;
+    padding:11px 14px calc(20px + env(safe-area-inset-bottom));
+    background:rgba(38,34,30,0.88);
+    backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    border-top:1px solid rgba(255,255,255,0.12);
+    display:flex; flex-direction:column; gap:9px;
+    transform:translateY(100%); opacity:0;
+    transition:transform 0.35s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease;
+    z-index:10; touch-action:none;
+  }
+  #tray.visible { transform:translateY(0); opacity:1; }
 
-  /* VOICE CARDS */
-  .voice{display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--border);
-    border-radius:4px;margin-bottom:10px;background:#0c0c0e;}
-  .voice:last-child{margin-bottom:0;}
-  .vhead{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:8px;}
-  .vhead input[type=range]{min-width:44px;}
-  .vname{font-weight:700;font-size:13px;letter-spacing:.02em;flex-shrink:0;}
-  .vnote{font-size:11px;font-variant-numeric:tabular-nums;font-weight:600;flex-shrink:0;}
+  #swatchRow {
+    display:flex; align-items:center; gap:7px; overflow-x:auto; padding:2px 0 1px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  #swatchRow::-webkit-scrollbar { display:none; }
+  .swatch {
+    width:28px; height:28px; border-radius:50%; flex-shrink:0;
+    border:2px solid rgba(255,255,255,0.2);
+    transition:transform 0.16s, border-color 0.16s;
+    touch-action:none; cursor:pointer;
+  }
+  .swatch.active {
+    border-color:rgba(255,255,255,0.9); transform:scale(1.2);
+    box-shadow:0 0 10px rgba(255,255,255,0.25);
+  }
 
-  .vrow{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-  .vrow:last-child{margin-bottom:0;}
-  .loadbtn{flex-shrink:0;padding:6px 10px;background:var(--card);border:1px solid var(--border);
-    color:var(--bright);border-radius:3px;font:inherit;font-size:11px;cursor:pointer;
-    text-transform:uppercase;letter-spacing:.05em;}
-  .loadbtn:active{background:#1c1c22;}
-  .vsrc{flex:1;min-width:0;font-size:9px;color:var(--muted);white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis;}
-  .vsrc.loaded{color:#fff;font-weight:600;}
+  .rowDiv { width:1px; height:24px; align-self:center; margin:0 4px; background:rgba(255,255,255,0.14); flex-shrink:0; }
 
-  /* RECORD BUTTON (per-voice color-automation) */
-  .recbtn{flex-shrink:0;padding:6px 10px;background:var(--card);border:1px solid var(--border);
-    color:var(--bright);border-radius:3px;font:inherit;font-size:11px;cursor:pointer;
-    text-transform:uppercase;letter-spacing:.05em;}
-  .recbtn:active{background:#1c1c22;}
-  .recbtn.recording{background:#ef4444;border-color:#ef4444;color:#fff;animation:recpulse 1s infinite;}
-  .recbtn.hasseq{background:#1c1c22;border-color:currentColor;}
-  @keyframes recpulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+  .size {
+    width:30px; height:30px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid rgba(255,255,255,0.14);
+    transition:transform 0.16s, border-color 0.16s; touch-action:none; cursor:pointer;
+  }
+  .size i { display:block; border-radius:50%; background:rgba(255,255,255,0.55); }
+  .size.active { border-color:rgba(255,255,255,0.85); transform:scale(1.12); }
+  .size.active i { background:rgba(255,255,255,0.92); }
 
-  /* PITCH SWATCH (per-voice color -> note) */
-  .swatch{-webkit-appearance:none;appearance:none;width:26px;height:26px;flex-shrink:0;
-    border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;padding:0;}
-  .swatch::-webkit-color-swatch-wrapper{padding:2px;}
-  .swatch::-webkit-color-swatch{border:none;border-radius:4px;}
+  .ghost-btn {
+    font-family:'Courier New', monospace; font-size:0.68rem; letter-spacing:0.1em;
+    color:rgba(255,255,255,0.5); background:none; border:none; cursor:pointer;
+    padding:6px 4px; transition:color 0.18s; white-space:nowrap;
+  }
+  .ghost-btn:hover { color:rgba(255,255,255,0.9); }
 
-  /* INTERVAL / PATTERN ROWS */
-  .interval-ctrl{display:flex;align-items:center;gap:8px;}
-  .intlbl{font-size:9px;color:var(--muted);flex-shrink:0;width:60px;}
-  .intval{font-size:11px;font-weight:600;width:35px;text-align:center;}
-  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:3px;background:var(--border);
-    border-radius:2px;}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;border-radius:50%;
-    background:currentColor;}
-  input[type=range]::-moz-range-thumb{height:14px;width:14px;border:none;border-radius:50%;background:currentColor;}
+  #resetBtn {
+    width:30px; height:30px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid rgba(216,138,118,0.55);
+    background:rgba(120,58,48,0.2); color:rgba(242,204,194,0.9);
+    font-size:16px; line-height:1; touch-action:none; cursor:pointer;
+  }
 
-  /* BAR STRIP */
-  .barstrip{display:flex;gap:2px;margin-top:2px;overflow-x:auto;padding:2px 0 4px;}
-  .barcell{flex:1 0 12px;min-width:12px;height:26px;background:#0c0c0e;border:1px solid var(--border);
-    border-radius:2px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:2px;}
-  .barcell.now{border-color:#fff;box-shadow:0 0 6px rgba(255,255,255,.5);}
-  .bardot{width:100%;height:3px;border-radius:1px;flex-shrink:0;}
+  #dipRow { display:flex; gap:8px; height:65px; }
+  .dip, #napkin {
+    flex:1; border-radius:7px; position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Courier New', monospace;
+    font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase;
+    touch-action:none; cursor:pointer;
+  }
+  .dip .fill {
+    position:absolute; left:0; bottom:0; right:0; height:100%;
+    background:rgba(255,255,255,0.25); transition:height 0.1s linear; pointer-events:none;
+  }
+  .dip span, #napkin .napLabel { position:relative; z-index:2; pointer-events:none; font-weight:bold; }
+  #dipInk   { background:#141210; color:#eee; border:1px solid rgba(255,255,255,0.15); }
+  #dipWater { background:#2e5d8a; color:#eaf2fa; border:1px solid rgba(255,255,255,0.15); }
 
-  /* CONTROLS */
-  .srow{display:flex;justify-content:space-between;align-items:center;margin:8px 0;}
-  .srow label{font-size:10px;color:#a1a1aa;}
-  .sv{font-size:11px;font-weight:700;}
-  .sld{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:var(--border);
-    border-radius:2px;margin:4px 0;}
-  .sld::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;border-radius:50%;
-    background:#3b82f6;}
-  .sld::-moz-range-thumb{height:14px;width:14px;border:none;border-radius:50%;background:#3b82f6;}
-
-  .btnrow{display:flex;gap:7px;}
-  .btn{flex:1;background:var(--card);border:1px solid var(--border);color:var(--bright);
-    padding:9px;border-radius:4px;font:inherit;font-size:11px;text-transform:uppercase;
-    letter-spacing:.05em;cursor:pointer;}
-  .btn:active{background:#1c1c22;}
-  .btn.play{font-weight:700;}
-  .btn.play.on{background:#ef4444;border-color:#ef4444;color:#fff;}
-  #btnRecAll.on{background:#ef4444;border-color:#ef4444;color:#fff;font-weight:700;}
-
-  #log{font-size:9px;color:#a1a1aa;padding:8px 2px 0;border-top:1px solid var(--border);
-    margin-top:8px;min-height:16px;}
-  #log b{color:#10b981;}
+  #napkin { background:#e8e4d8; color:#5a5348; border:1px solid rgba(0,0,0,0.1); }
+  .napZones { position:absolute; inset:0; display:flex; z-index:1; }
+  .napZone { flex:1; touch-action:none; cursor:pointer; }
+  .napZone.mid { border-left:1px solid rgba(90,83,72,0.18); border-right:1px solid rgba(90,83,72,0.18); }
+  .napZone.pressed { background:rgba(90,83,72,0.25); }
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <div class="sys-tag">AXIOM-OS // SAMPLE VOICES</div>
-    <div class="sys-status"><span class="dot" id="dot"></span><span id="stxt">IDLE</span></div>
-  </header>
 
-  <!-- VOICE SAMPLES -->
-  <div class="panel">
-    <div class="lbl">Voices · color = chord · hue root · sat density · value octave</div>
-    <div id="voicesContainer"></div>
+<canvas id="c"></canvas>
+
+<div id="tray" class="visible">
+  <div id="swatchRow">
+    <div class="swatch active" style="background:#2a2420" data-ink="#2a2420"></div>
+    <div class="swatch" style="background:#3d1f14" data-ink="#3d1f14"></div>
+    <div class="swatch" style="background:#141c24" data-ink="#141c24"></div>
+    <div class="swatch" style="background:#14281D" data-ink="#14281D"></div>
+    <div class="swatch" style="background:#4a1a1a" data-ink="#4a1a1a"></div>
+    <div class="rowDiv"></div>
+    <div class="size" data-r="3"><i style="width:4px;height:4px"></i></div>
+    <div class="size active" data-r="8"><i style="width:9px;height:9px"></i></div>
+    <div class="size" data-r="16"><i style="width:15px;height:15px"></i></div>
+    <div class="rowDiv"></div>
+    <button class="ghost-btn" id="btnUndo">undo</button>
+    <button id="resetBtn" title="Reset Canvas">↺</button>
   </div>
 
-  <!-- BAR -->
-  <div class="panel">
-    <div class="lbl">Bar · shared polyrhythm cycle length</div>
-    <div class="srow"><label>Pulses per bar</label><span class="sv" id="vBarLen">16</span></div>
-    <input type="range" class="sld" id="sBarLen" min="4" max="32" step="1" value="16">
-    <div id="barStrip" class="barstrip"></div>
-  </div>
-
-  <!-- CONTROLS -->
-  <div class="panel">
-    <div class="lbl">Engine</div>
-    <div class="srow"><label>BPM / Clock rate</label><span class="sv" id="vBPM">120</span></div>
-    <input type="range" class="sld" id="sBPM" min="40" max="240" step="1" value="120">
-
-    <div class="srow"><label>Trigger rate (pulses/beat)</label><span class="sv" id="vRate">2</span></div>
-    <input type="range" class="sld" id="sRate" min="0.5" max="8" step="0.5" value="2">
-
-    <div class="srow"><label>Master gain</label><span class="sv" id="vGain">0.60</span></div>
-    <input type="range" class="sld" id="sGain" min="0" max="1" step="0.02" value="0.6">
-
-    <div class="srow"><label>Scan hue</label><span class="sv" id="vScan">OFF</span></div>
-    <input type="range" class="sld" id="sScan" min="0" max="60" step="1" value="0">
-
-    <div class="srow"><label>Harmony</label><span class="sv" id="vScale">CHROMATIC</span></div>
-    <div class="btnrow"><button class="btn" id="btnScale">&#9671; CHROMATIC STACK</button></div>
-
-    <div class="btnrow" style="margin-top:12px;">
-      <button class="btn play" id="btnPlay">▶ ENGAGE</button>
-      <button class="btn" id="btnRecAll">● REC ALL</button>
+  <div id="dipRow">
+    <div class="dip" id="dipInk"><div class="fill" id="inkFill"></div><span>ink</span></div>
+    <div id="napkin">
+      <div class="napZones">
+        <div class="napZone" data-drain="ink" title="Drain Ink"></div>
+        <div class="napZone mid" data-drain="both" title="Dab Both"></div>
+        <div class="napZone" data-drain="water" title="Drain Water"></div>
+      </div>
+      <span class="napLabel">napkin</span>
     </div>
-    <div id="log">Ready. Load samples, set pattern, then ENGAGE.</div>
+    <div class="dip" id="dipWater"><div class="fill" id="waterFill"></div><span>water</span></div>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end;">
+    <button class="ghost-btn" id="btnTilt">tilt</button>
   </div>
 </div>
 
 <script>
-const MIDINAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const hueToNote = h => ((Math.round(h/30) % 12) + 12) % 12;
-// MIDI 60 = C4, matching the sampler's "C4" anchor.
-const midiToName = m => MIDINAMES[((m%12)+12)%12] + (Math.floor(m/12) - 1);
-const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-const $ = id => document.getElementById(id);
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
 
-// VOICE SETUP
-const VOICES = {
-  v1: { label:'VOICE 1', color:'--v1', hex:'#3b82f6' },
-  v2: { label:'VOICE 2', color:'--v2', hex:'#10b981' },
-  v3: { label:'VOICE 3', color:'--v3', hex:'#f59e0b' },
-  v4: { label:'VOICE 4', color:'--v4', hex:'#ffe600' },
+// ── TUNABLES ────────────────────────────────────────────────
+const DRY_SECONDS = 10.0;
+const BRUSH_DRAIN_PER_STEP = 0.000001;
+const MAX_BRUSH_R = 8;           // default max radius (changed by size buttons)
+const MIN_BRUSH_R = 1;
+let BRUSH_R = MAX_BRUSH_R;       // current max brush radius
+
+let waterLoad = 0.8;
+let inkLoad = 0.95;
+
+let inkR = 0x2a, inkG = 0x24, inkB = 0x20;   // sumi default
+
+function setInk(hex) {
+  inkR = parseInt(hex.slice(1,3),16);
+  inkG = parseInt(hex.slice(3,5),16);
+  inkB = parseInt(hex.slice(5,7),16);
+}
+
+// ── DETERMINISTIC RANDOM ────────────────────────────────────
+const R2A=0.7548776662466927,R2B=0.5698402909980532,GOLD=Math.PI*(3-Math.sqrt(5));
+const fract=x=>x-Math.floor(x);
+const dU=(a,b)=>fract(Math.sin(a*127.1+b*311.7)*43758.5453123);
+const dS=(a,b)=>dU(a,b)*21;
+const dG=(a,b)=>(dU(a,b)+dU(a+1.618,b+3.14)+dU(a+2.71,b+1.41)-1.5)*1.15;
+
+// ── PAPER GENERATION (sumi‑e style) ─────────────────────────
+const paperCanvas = document.createElement('canvas');
+const paperCtx = paperCanvas.getContext('2d');
+
+function generatePaper() {
+  const w=canvas.width, h=canvas.height;
+  paperCanvas.width=w; paperCanvas.height=h;
+  paperCtx.clearRect(0,0,w,h);
+  paperCtx.fillStyle='#f4f1ea';
+  paperCtx.fillRect(0,0,w,h);
+
+  const area=w*h;
+  const fiberCount=Math.floor(area/3800);
+  paperCtx.strokeStyle='rgba(55,45,35,0.014)';
+  for(let i=1;i<=fiberCount;i++){
+    const x=fract(i*R2A)*w, y=fract(i*R2B)*h, ang=i*GOLD;
+    const len=25+dU(i,7.3)*110;
+    paperCtx.lineWidth=0.18+dU(i,11.1)*0.65;
+    paperCtx.beginPath();
+    paperCtx.moveTo(x,y);
+    paperCtx.bezierCurveTo(
+      x+Math.cos(ang)*(len/3)+dS(i,1.2)*4, y+Math.sin(ang)*(len/3)+dS(i,2.3)*4,
+      x+Math.cos(ang)*(len*2/3)+dS(i,3.4)*4, y+Math.sin(ang)*(len*2/3)+dS(i,4.5)*4,
+      x+Math.cos(ang)*len, y+Math.sin(ang)*len);
+    paperCtx.stroke();
+  }
+
+  const moteCount=Math.floor(area/130);
+  paperCtx.fillStyle='rgba(130,115,95,0.02)';
+  for(let i=1;i<=moteCount;i++){
+    const rx=fract((i+0.5)*R2A)*w, ry=fract((i+0.5)*R2B)*h;
+    paperCtx.beginPath();
+    paperCtx.arc(rx,ry,dU(i,5.5)*1.6,0,Math.PI*2);
+    paperCtx.fill();
+  }
+
+  const grad=paperCtx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.22, w/2,h/2,Math.max(w,h)*0.6);
+  grad.addColorStop(0,'rgba(255,255,255,0)');
+  grad.addColorStop(1,'rgba(170,160,145,0.12)');
+  paperCtx.fillStyle=grad;
+  paperCtx.fillRect(0,0,w,h);
+
+  // hanko stamp
+  const size=Math.max(48, Math.min(w,h)*0.06);
+  const sx=w-size-40, sy=h-size-40;
+  paperCtx.save();
+  paperCtx.fillStyle='rgba(160,24,24,0.55)';
+  paperCtx.strokeStyle='rgba(160,24,24,0.55)';
+  paperCtx.lineWidth=size*0.06;
+  const pad=size*0.08;
+  paperCtx.strokeRect(sx+pad,sy+pad,size-pad*2,size-pad*2);
+  paperCtx.font=`bold ${size*0.55}px "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif`;
+  paperCtx.textAlign='center';
+  paperCtx.textBaseline='middle';
+  paperCtx.fillText('像', sx+size/2, sy+size/2+size*0.03);
+  paperCtx.restore();
+}
+
+// ── INK CANVAS (permanent strokes + settled splatter) ───────
+const inkCanvas = document.createElement('canvas');
+const inkCtx = inkCanvas.getContext('2d');
+inkCanvas.width=canvas.width; inkCanvas.height=canvas.height;
+
+// ── WATER TABLE ─────────────────────────────────────────────
+const WATER={
+  cell:1, deposit:10, linger:0.8, drySec:4, bleedAt:0.8, dripAt:.85,
+  bloomCooldown:900, dripMax:999, dripLen:900, dripSpeed:0.8, dripWobble:0,
+  dripSpend:0.75, channelPull:11, channelAt:0.9, sip:0.5, bloomGrow:1100,
+  gravMin:0.34
 };
-const VKEYS = Object.keys(VOICES);
-// Different hit counts per voice by default -- otherwise every voice would
-// still land on the same pulses even with the polyrhythm engine in place.
-const DEFAULT_HITS = { v1:4, v2:3, v3:5, v4:2 };
-
-let master, reverb, ready=false, playing=false;
-let loopHandle=null;
-let bpm=120, pulseRate=2, scanSpeed=0;
-let barLength=16, pulseIndex=0;
-let scaleLock=false;                 // false = chromatic-stacked (default), true = snap to C major
-
-// CHORD ENGINE ------------------------------------------------
-const STRUM = 0.008;                 // seconds between chord notes -> tiny humanized spread, kills phase-mud
-const STACK = [0,4,7,11,14,18,21];   // tertian stack off the root: R M3 P5 M7 M9 #11 M13
-// SATURATION picks how tall the stack is -> pale = open/ambiguous, vivid = dense/tense
-function chordShape(sat){
-  if(sat < 0.20) return [0,7];         // open fifth
-  if(sat < 0.45) return [0,4,7];       // triad
-  if(sat < 0.70) return [0,4,7,11];    // 7th
-  if(sat < 0.88) return [0,4,7,11,14]; // 9th
-  return [0,4,7,11,14,18];             // #11
+let wetW, wetH, wetSat, wetGrp, wetBloomT;
+function setupWaterGrid() {
+  wetW=Math.max(1,Math.ceil(canvas.width/WATER.cell));
+  wetH=Math.max(1,Math.ceil(canvas.height/WATER.cell));
+  wetSat=new Float32Array(wetW*wetH);
+  wetGrp=new Int32Array(wetW*wetH);
+  wetBloomT=new Float64Array(wetW*wetH);
 }
-const QUALITY = {2:'5',3:'\u25B3',4:'7',5:'9',6:'\u246A'}; // 5 · △ · 7 · 9 · ⑪
-const SCALE = [0,2,4,5,7,9,11];      // C major, used only when scaleLock is on
-function snapMidi(m){
-  if(!scaleLock) return m;
-  const pc=((m%12)+12)%12, oct=Math.floor(m/12);
-  let best=SCALE[0], bd=99;
-  for(const s of SCALE){ const d=Math.abs(s-pc); if(d<bd){bd=d;best=s;} }
-  return oct*12 + best;
+function cellAt(x,y){
+  const cx=Math.min(wetW-1,Math.max(0,Math.floor(x/WATER.cell)));
+  const cy=Math.min(wetH-1,Math.max(0,Math.floor(y/WATER.cell)));
+  return cy*wetW+cx;
+}
+function depositWet(x,y,amt,wpx,group,surfGroup,quiet){
+  if(!wetSat)return;
+  const i=cellAt(x,y),now=performance.now();
+  const wasWet=wetSat[i];
+  const foreign=wetGrp[i]!==0&&wetGrp[i]!==group;
+  wetSat[i]=Math.min(1.5,wetSat[i]+amt);
+  const s=amt*0.3;
+  const cx=i%wetW;
+  if(cx>0)wetSat[i-1]=Math.min(1.5,wetSat[i-1]+s);
+  if(cx<wetW-1)wetSat[i+1]=Math.min(1.5,wetSat[i+1]+s);
+  if(i-wetW>=0)wetSat[i-wetW]=Math.min(1.5,wetSat[i-wetW]+s);
+  if(i+wetW<wetSat.length)wetSat[i+wetW]=Math.min(1.5,wetSat[i+wetW]+s);
+  wetGrp[i]=group;
+  if(quiet)return;
+  if(foreign&&wasWet>WATER.bleedAt&&now-wetBloomT[i]>WATER.bloomCooldown){
+    wetBloomT[i]=now;
+    spawnBloom(x,y,12+wasWet*30+wpx*0.4,surfGroup);
+  }
+  if(wetSat[i]>=WATER.dripAt){
+    const nb=((cx>0?wetSat[i-1]:0)+(cx<wetW-1?wetSat[i+1]:0)+(i-wetW>=0?wetSat[i-wetW]:0)+(i+wetW<wetSat.length?wetSat[i+wetW]:0))/4;
+    const soak=Math.min(1,wetSat[i]*0.55+nb*0.6);
+    wetSat[i]-=0.6;
+    if(grav.mag>WATER.gravMin){
+      spawnDrip(x,y,wpx,surfGroup,soak);
+    }else if(now-wetBloomT[i]>WATER.bloomCooldown){
+      wetBloomT[i]=now;
+      spawnBloom(x,y,16+wasWet*26+wpx*0.5,surfGroup);
+    }
+  }
+}
+function decayWet(now){
+  if(!wetSat)return;
+  const dt=Math.min(120,now-(wetLastT||now));
+  wetLastT=now;
+  const d=dt/(WATER.drySec*1000);
+  for(let i=0;i<wetSat.length;i++){
+    if(wetSat[i]>0){
+      wetSat[i]-=d;
+      if(wetSat[i]<=0){wetSat[i]=0;wetGrp[i]=0;}
+    }
+  }
+}
+let wetLastT=0;
+let drips=[], blooms=[];
+class Bloom{
+  constructor(x,y,size,group){
+    this.x=x;this.y=y;this.size=Math.min(64,size);this.group=group;
+    const seed=Math.floor(x)*3.3+Math.floor(y)*8.9;
+    this.p1=dU(seed,4.4)*Math.PI*2;
+    this.p2=dU(seed,5.5)*Math.PI*2;
+    this.a1=0.12+dU(seed,6.6)*0.1;
+    this.a2=0.06+dU(seed,7.7)*0.08;
+    this.born=performance.now();
+    this.dur=WATER.bloomGrow*50;
+    this.rPrev=0;
+    this.alive=true;
+  }
+  edge(r){
+    const bx=this.x,by=this.y;
+    inkCtx.beginPath();
+    const STEPS=26;
+    for(let i=0;i<=STEPS;i++){
+      const t=(i/STEPS)*Math.PI*2;
+      const rr=r*(1+Math.sin(t*3+this.p1)*this.a1+Math.sin(t*5+this.p2)*this.a2);
+      const px=bx+Math.cos(t)*rr,py=by+Math.sin(t)*rr;
+      i?inkCtx.lineTo(px,py):inkCtx.moveTo(px,py);
+    }
+    inkCtx.closePath();
+  }
+  step(now){
+    const p=Math.min(1,(now-this.born)/this.dur);
+    const r=this.size*(Math.pow(p,1.8)*0.95);
+    if(r-this.rPrev<0.2&&p<1)return;
+    const mid=Math.max(0.3,(r+this.rPrev)/2);
+    const a=0.0001*(1-(mid/this.size)*0.68);
+    inkCtx.strokeStyle=`rgba(${inkR},${inkG},${inkB},${Math.max(0.008,a)})`;
+    inkCtx.lineWidth=Math.max(0.7,(r-this.rPrev)*0.8);
+    this.edge(mid);
+    inkCtx.stroke();
+    this.rPrev=r;
+    if(p>=1)this.alive=false;
+  }
+}
+function spawnBloom(x,y,size,group){
+  if(blooms.length>=12)return;
+  blooms.push(new Bloom(x,y,size,group));
+}
+class Drip{
+  constructor(x,y,water,w,group,maxDist,cap){
+    this.x=x;this.y=y;this.water=water;this.w=w;this.group=group;
+    this.maxDist=maxDist;this.cap=cap;this.dist=0;this.alive=true;
+    this.locked=false;this.lockX=x;this.lockY=y;this.lockDir={x:0,y:1};
+  }
+  step(){
+    const m=Math.max(grav.mag,0.05);
+    const sp=WATER.dripSpeed*(0.3+0.65*this.water)*m;
+    let gx=grav.x/m, gy=grav.y/m;
+    const nextX=this.x+gx*sp, nextY=this.y+gy*sp;
+    const nextCell=cellAt(nextX,nextY);
+    const nextWet=wetSat[nextCell];
+    if(nextWet>WATER.channelAt&&!this.locked){
+      this.locked=true;this.lockX=nextX;this.lockY=nextY;this.lockDir={x:gx,y:gy};
+    }
+    if(this.locked){
+      const lockCell=cellAt(this.lockX,this.lockY);
+      const lockWet=wetSat[lockCell];
+      if(nextWet>lockWet*1.3&&nextWet>WATER.channelAt){
+        this.lockDir={x:gx,y:gy};
+      }
+      gx=this.lockDir.x;gy=this.lockDir.y;
+    }
+    const wob=Math.sin(this.dist*0.12+this.x*7.3)*WATER.dripWobble;
+    const px=this.x,py=this.y;
+    this.x+=(gx-gy*wob)*sp;this.y+=(gy+gx*wob)*sp;
+    this.dist+=sp;
+    const wNow=Math.max(0.3,this.w*Math.pow(Math.max(0,this.water),0.6));
+    inkCtx.strokeStyle=`rgba(${inkR},${inkG},${inkB},${this.cap*(0.5+0.4*this.water)})`;
+    inkCtx.lineWidth=wNow;
+    inkCtx.lineCap='round';
+    inkCtx.beginPath();inkCtx.moveTo(px,py);inkCtx.lineTo(this.x,this.y);inkCtx.stroke();
+    depositWet(this.x,this.y,0.000001,wNow,this.group,this.group,true);
+    this.water-=WATER.dripSpend;
+    const out=this.x<0||this.x>canvas.width||this.y<0||this.y>canvas.height;
+    if(this.water<=0.08||this.dist>=this.maxDist||out){
+      inkCtx.fillStyle=`rgba(${inkR},${inkG},${inkB},${this.cap*0.85})`;
+      inkCtx.beginPath();inkCtx.arc(this.x,this.y,wNow*1.15,0,Math.PI*2);inkCtx.fill();
+      this.alive=false;
+    }
+  }
+}
+function spawnDrip(x,y,wpx,group,soak=0.7){
+  if(drips.length>=WATER.dripMax)return;
+  const seed=Math.floor(x)*5.7+Math.floor(y)*9.1;
+  const water=soak*(0.7+dU(seed,3.1)*0.3);
+  const maxDist=WATER.dripLen*(0.25+soak*soak*0.95);
+  drips.push(new Drip(x,y,water,Math.max(1.1,wpx*0.14),group,maxDist,curInkAlpha||0.5));
 }
 
-// VOICE STATE
-let voiceData = {};
-VKEYS.forEach(k=>{
-  const _hsv = hexHSV(VOICES[k].hex);
-  voiceData[k] = {
-    file: null,
-    sampler: null,
-    vol: null,                        // per-voice Tone.Gain, created in initAudio()
-    send: null,                       // per-voice reverb-send Gain, created in initAudio()
-    sendAmt: 0.2,                     // how much of this voice goes to the shared reverb glue
-    interval: 0,                      // semitone offset applied to the whole chord
-    hue: _hsv.hue,                    // HUE -> chord root
-    sat: _hsv.sat,                    // SATURATION -> chord density (open5 -> triad -> 7 -> 9 -> 11)
-    val: _hsv.val,                    // VALUE -> octave register of the voicing
-    hitsPerBar: DEFAULT_HITS[k] || 4, // polyrhythm: hits spread across the shared bar
-    skipProb: 0,                      // % chance a scheduled hit is skipped
-    _hitSet: null,                    // cached Set of pulse indices this voice fires on
-    recState: 'off',                  // 'off' | 'recording'
-    colorSeq: null,                   // recorded per-pulse {h,s,v} array, one bar long -> a chord progression
-    _recBuf: null,                    // rolling capture buffer while recording (last pass wins)
-    _recTouched: false,               // did any color motion actually happen during this take
-  };
+// ── GRAVITY (gyro) ──────────────────────────────────────────
+let grav={x:0,y:0.55,mag:0.55},gyroLive=false;
+function armGyro(done){
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission()
+      .then(state=>done(state==='granted'))
+      .catch(()=>done(false));
+  }else{
+    setTimeout(()=>done(gyroLive),300);
+  }
+}
+window.addEventListener('deviceorientation',e=>{
+  if(e.beta===null||e.gamma===null)return;
+  gyroLive=true;
+  const b=e.beta*Math.PI/180,g=e.gamma*Math.PI/180;
+  const ang=(((screen.orientation&&screen.orientation.angle)??window.orientation)||0)*Math.PI/180;
+  const ca=Math.cos(ang),sa=Math.sin(ang);
+  const rx=Math.sin(g)*ca+Math.sin(b)*sa;
+  const ry=Math.sin(b)*ca-Math.sin(g)*sa;
+  const m=Math.min(1,Math.hypot(rx,ry));
+  grav.x+=(rx-grav.x)*0.12;grav.y+=(ry-grav.y)*0.12;grav.mag+=(m-grav.mag)*0.12;
 });
 
-// ============================================================
-// HEX <-> HSV
-// ============================================================
-function hexHSV(hex){
-  const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
-  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
-  let h=0;
-  if(d>0){
-    if(mx===r) h=((g-b)/d)%6;
-    else if(mx===g) h=(b-r)/d+2;
-    else h=(r-g)/d+4;
-    h*=60; if(h<0)h+=360;
+// ── SPLATTER & PARTICLES ────────────────────────────────────
+let particles=[],ripple=null,curInkAlpha=0.8;
+const maxParticles=500;
+class InkParticle{
+  constructor(x,y,vx,vy,radius,r,g,b,id){
+    this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.radius=radius;
+    this.r=r;this.g=g;this.b=b;this.id=id;this.alpha=0.88;
+    this.friction=0.9;this.gravity=0;this.decay=0.0002+dU(id,9.4)*0.0001;
+    this.settled=false;
   }
-  return { hue:h, sat: mx===0?0:d/mx, val:mx };
-}
-
-// HSV (fixed sat/val) -> hex, for drawing a drifted hue back onto a swatch/dot.
-function hsvHex(h, s=0.85, v=0.95){
-  const c=v*s, x=c*(1-Math.abs((h/60)%2-1)), m=v-c;
-  let r,g,b;
-  if(h<60){ r=c;g=x;b=0; }
-  else if(h<120){ r=x;g=c;b=0; }
-  else if(h<180){ r=0;g=c;b=x; }
-  else if(h<240){ r=0;g=x;b=c; }
-  else if(h<300){ r=x;g=0;b=c; }
-  else { r=c;g=0;b=x; }
-  const R=Math.round((r+m)*255), G=Math.round((g+m)*255), B=Math.round((b+m)*255);
-  return '#'+[R,G,B].map(n=>n.toString(16).padStart(2,'0')).join('');
-}
-
-// ============================================================
-// AUDIO INIT
-// ============================================================
-function initAudio(){
-  master = new Tone.Gain(parseFloat($('sGain').value));
-  const limiter = new Tone.Limiter(-2);
-  master.connect(limiter);
-  limiter.toDestination();
-
-  // One shared reverb bus glues the four voices into a single space instead
-  // of four dry, unrelated blips. Each voice sends a little of itself here.
-  reverb = new Tone.Reverb({ decay: 2.4, preDelay: 0.02, wet: 1 });
-  reverb.connect(master);
-
-  // Per-voice volume: one persistent Gain node per voice, connected to
-  // master (dry) and to the reverb bus (wet). Samplers connect to their own
-  // voice's gain, so reloading a sample never resets the fader or the send.
-  VKEYS.forEach(k=>{
-    const vd = voiceData[k];
-    vd.vol = new Tone.Gain(1);
-    vd.vol.connect(master);
-    vd.send = new Tone.Gain(vd.sendAmt);
-    vd.vol.connect(vd.send);
-    vd.send.connect(reverb);
-  });
-
-  ready=true;
-  log('<b>Engine online.</b> Load samples, set pattern, then ENGAGE.','ok');
-}
-
-// ============================================================
-// SAMPLE LOADING — direct-bytes + triple-shape decode + context-resume
-// ============================================================
-function withTimeout(p, ms, label){
-  let t;
-  const timer = new Promise((_,rej)=>{ t=setTimeout(()=>rej(new Error(label+' timed out after '+(ms/1000)+'s')), ms); });
-  return Promise.race([p, timer]).finally(()=>clearTimeout(t));
-}
-
-function readFileBuffer(file){
-  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
-  return new Promise((res,rej)=>{
-    const fr = new FileReader();
-    fr.onload  = ()=>res(fr.result);
-    fr.onerror = ()=>rej(new Error('FileReader could not read the file'));
-    fr.readAsArrayBuffer(file);
-  });
-}
-
-let _decodeCtx = null;
-async function decodeAudio(arr, sampleRate){
-  const errs = [];
-  const raw = (typeof Tone !== 'undefined') ? Tone.getContext().rawContext : null;
-  const ok = b => b && b.length > 0;
-
-  if (raw && raw.decodeAudioData){
-    try {
-      const r = raw.decodeAudioData(arr.slice(0));
-      if (r && typeof r.then === 'function'){
-        const b = await r;
-        if (ok(b)) return b;
-        errs.push('promise: empty buffer');
-      } else {
-        errs.push('promise form unsupported');
-      }
-    } catch(e){ errs.push('promise: '+(e && e.message || e)); }
-
-    try {
-      const b = await new Promise((res,rej)=>{
-        const r = raw.decodeAudioData(arr.slice(0), res, rej);
-        if (r && typeof r.then === 'function') r.then(res, rej);
-      });
-      if (ok(b)) return b;
-      errs.push('callback: empty buffer');
-    } catch(e){ errs.push('callback: '+(e && e.message || e)); }
-  }
-
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (AC){
-    try {
-      if (!_decodeCtx) _decodeCtx = new AC(sampleRate ? {sampleRate} : undefined);
-      const b = await new Promise((res,rej)=>{
-        const r = _decodeCtx.decodeAudioData(arr.slice(0), res, rej);
-        if (r && typeof r.then === 'function') r.then(res, rej);
-      });
-      if (ok(b)) return b;
-      errs.push('fallback ctx: empty buffer');
-    } catch(e){ errs.push('fallback ctx: '+(e && e.message || e)); }
-  }
-  throw new Error(errs.join(' | ') || 'no decoder available');
-}
-
-async function loadSample(key, file){
-  const v = voiceData[key];
-  if (!file) return;
-  if (typeof Tone === 'undefined'){ log('Tone.js not loaded — check connection.','wrn'); return; }
-
-  const short = file.name.length>22 ? file.name.slice(0,21)+'…' : file.name;
-
-  try{
-    if (file.size === 0) throw new Error('file is empty (0 bytes)');
-    if (file.size > 80*1024*1024) throw new Error('file is '+(file.size/1048576|0)+' MB — too big to decode on mobile');
-
-    try{ await Tone.start(); }catch(e){ /* non-fatal */ }
-    const raw = Tone.getContext().rawContext;
-    if (raw && raw.state !== 'running'){ try{ await raw.resume(); }catch(e){} }
-
-    log(`Reading ${short}…`);
-    const arr = await withTimeout(readFileBuffer(file), 20000, 'read');
-    if (!arr || !arr.byteLength) throw new Error('got 0 bytes back from the file');
-
-    log(`Decoding ${short}…`);
-    const audioBuffer = await withTimeout(decodeAudio(arr, raw ? raw.sampleRate : undefined), 30000, 'decode');
-    if (!audioBuffer || !audioBuffer.length) throw new Error('decoded to an empty buffer');
-
-    if (v.sampler){ try{ v.sampler.dispose(); }catch(e){} v.sampler = null; }
-
-    const toneBuf = new Tone.ToneAudioBuffer(audioBuffer);
-    let s = new Tone.Sampler({ urls:{ C4: toneBuf } });
-    if (!s.loaded){ try{ s.add('C4', toneBuf); }catch(e){} }
-    if (!s.loaded) throw new Error('Tone.Sampler would not accept the buffer');
-
-    s.connect(v.vol);
-    v.sampler = s;
-    v.file = file.name;
-    const src = $('src-'+key);
-    src.textContent = file.name;
-    src.classList.add('loaded');
-    $('note-'+key).textContent = voiceReadout(key);
-    log(`<b>${VOICES[key].label}</b> loaded: ${file.name} · ${audioBuffer.duration.toFixed(1)}s`,'ok');
-
-  }catch(err){
-    const why = (err && err.message) ? err.message : String(err);
-    console.error('[loadSample:'+key+']', err);
-    log(`<b>${VOICES[key].label}</b> — ${short}: ${why}`,'wrn');
-  }
-}
-
-// ============================================================
-// NOTE CALCULATION
-// ============================================================
-// Turn a voice's current colour (or its recorded colour at pulse idx) into a
-// whole chord: HUE -> root, SATURATION -> density, VALUE -> octave register.
-// A recorded colorSeq takes over per-pulse except while actively recording
-// (live dragging always wins then).
-function chordForVoice(key, idx){
-  const v = voiceData[key];
-  let h=v.hue, s=v.sat, val=v.val;
-  const recording = (v.recState === 'recording');
-  if(idx !== undefined && !recording && v.colorSeq && v.colorSeq.length){
-    const c = v.colorSeq[idx % v.colorSeq.length];
-    if(c){ h=c.h; s=c.s; val=c.v; }
-  }
-  const rootIdx  = hueToNote(h);
-  const octShift = Math.round((val - 0.5) * 2);            // dark -> -1, mid -> 0, bright -> +1 octave
-  const rootMidi = 60 + rootIdx + v.interval + octShift*12;
-  const shape    = chordShape(s);
-  const notes    = shape.map(iv => midiToName(snapMidi(rootMidi + iv)));
-  return { notes, rootName: midiToName(snapMidi(rootMidi)), label: QUALITY[shape.length] || '' };
-}
-
-// Short tag for the readout, e.g. "C7", "E△", "G9".
-function voiceReadout(key, idx){
-  const c = chordForVoice(key, idx);
-  return c.rootName.replace(/-?\d+$/,'') + c.label;
-}
-
-// ============================================================
-// PATTERN — polyrhythm hit-sets + bar visualization
-// ============================================================
-// Spread `hits` pulses evenly across a bar of `bar` pulses. Different
-// voices with different hit counts land on different pulse indices --
-// that's what actually breaks the "everyone on every pulse" unison.
-function hitPulses(hits, bar){
-  hits = Math.max(1, Math.min(hits, bar));
-  const set = new Set();
-  for(let i=0;i<hits;i++) set.add(Math.round(i*bar/hits) % bar);
-  return set;
-}
-
-function rebuildPattern(){
-  VKEYS.forEach(k=>{ voiceData[k]._hitSet = hitPulses(voiceData[k].hitsPerBar, barLength); });
-
-  const el = $('barStrip');
-  el.innerHTML = '';
-  for(let i=0;i<barLength;i++){
-    const cell = document.createElement('div');
-    cell.className = 'barcell';
-    cell.id = 'barcell-'+i;
-    VKEYS.forEach(k=>{
-      if(voiceData[k]._hitSet.has(i)){
-        const dot = document.createElement('div');
-        dot.className = 'bardot';
-        dot.style.background = hsvHex(voiceData[k].hue, voiceData[k].sat, voiceData[k].val);
-        cell.appendChild(dot);
-      }
-    });
-    el.appendChild(cell);
-  }
-}
-
-function markPulse(idx){
-  const prev = document.querySelector('.barcell.now');
-  if(prev) prev.classList.remove('now');
-  const cur = $('barcell-'+idx);
-  if(cur) cur.classList.add('now');
-}
-
-// ============================================================
-// TRIGGER / PLAYBACK
-// ============================================================
-function triggerPulse(idx, time){
-  VKEYS.forEach(k=>{
-    const v = voiceData[k];
-    if(!v.sampler || !v.sampler.loaded) return;
-    if(!v._hitSet || !v._hitSet.has(idx)) return;               // not this voice's pulse
-    if(v.skipProb > 0 && Math.random()*100 < v.skipProb) return; // probability skip
-    const { notes } = chordForVoice(k, idx);
-    const vel = 1 / Math.sqrt(notes.length);  // compensate: dense chords don't get louder than single notes
-    try{
-      // Micro-strum: nudge each chord note a few ms later so stacking the
-      // same sample against itself gives body instead of a combed transient.
-      notes.forEach((n,i)=> v.sampler.triggerAttackRelease(n, '8n', time + i*STRUM, vel));
-    }catch(e){
-      console.error('Trigger failed:', e);
+  update(){
+    if(this.settled)return;
+    this.x+=this.vx;this.y+=this.vy;
+    this.vx*=this.friction;this.vy*=this.friction;this.vy+=this.gravity;
+    this.alpha-=this.decay;
+    const spd=Math.hypot(this.vx,this.vy);
+    if(this.alpha<=0.03||spd<0.06){
+      this.settled=true;
+      inkCtx.globalAlpha=Math.max(0.01,this.alpha*0.9);
+      inkCtx.fillStyle=`rgb(${this.r},${this.g},${this.b})`;
+      inkCtx.beginPath();
+      inkCtx.arc(this.x,this.y,this.radius*1.5,0,Math.PI*2);
+      inkCtx.fill();
+      inkCtx.globalAlpha=1;
     }
-  });
-}
-
-// ============================================================
-// COLOR RECORDING — capture one bar of live swatch moves per voice
-// ============================================================
-function renderRecButton(k){
-  const v = voiceData[k];
-  const btn = $('rec-'+k);
-  if(!btn) return;
-  btn.classList.remove('recording','hasseq');
-  if(v.recState === 'recording'){ btn.classList.add('recording'); btn.textContent = '\u25CF REC'; }
-  else if(v.colorSeq){ btn.classList.add('hasseq'); btn.textContent = 'SEQ'; }
-  else{ btn.textContent = 'REC'; }
-}
-
-// Stop a take. If the color actually moved, keep the buffer (last full bar
-// of performance, since every pass overwrites); if nothing moved, discard —
-// so a tap-tap "never mind" backs out clean instead of saving a flat bar.
-function endRecording(k){
-  const v = voiceData[k];
-  if(v.recState !== 'recording') return;
-  if(v._recTouched && v._recBuf){
-    v.colorSeq = v._recBuf.slice();
-    log(`<b>${VOICES[k].label}</b> — kept the last bar. Looping it now.`,'ok');
-  }else{
-    log(`<b>${VOICES[k].label}</b> — no color moves, take discarded.`,'inf');
   }
-  v._recBuf = null;
-  v._recTouched = false;
-  v.recState = 'off';
-  renderRecButton(k);
-  updateRecAllBtn();
-}
-
-// Arm one voice for recording (seed its rolling buffer) WITHOUT opening a
-// picker — so several voices can be armed together and driven by one gesture.
-function armRecord(k){
-  const v = voiceData[k];
-  if(v.recState === 'recording') return;
-  v._recBuf = new Array(barLength).fill(0).map(()=>({h:v.hue, s:v.sat, v:v.val}));
-  v._recTouched = false;
-  v.recState = 'recording';
-  renderRecButton(k);
-}
-
-function toggleRecord(k){
-  const v = voiceData[k];
-
-  if(v.recState === 'recording'){ endRecording(k); return; }
-
-  if(v.colorSeq){
-    v.colorSeq = null;
-    renderRecButton(k);
-    log(`<b>${VOICES[k].label}</b> color sequence cleared — back to manual.`,'inf');
-    return;
-  }
-  if(!playing){
-    log('Engage the engine first, then hit REC.','wrn');
-    return;
-  }
-  // Start immediately — no waiting for the bar line. The buffer is seeded
-  // with the current colour and every pulse overwrites its own slot, so the
-  // take is always the LAST bar you performed. Riding ANY swatch while more
-  // than one voice is armed writes into every armed voice at once.
-  armRecord(k);
-  try{ $('swatch-'+k).click(); }catch(e){}
-  updateRecAllBtn();
-  log(`<b>${VOICES[k].label}</b> recording — ride the color. Arm more voices to record them together.`,'inf');
-}
-
-// ---- GROUP RECORD ------------------------------------------------
-// Reflect on the master button whether a take is in progress.
-function updateRecAllBtn(){
-  const btn = $('btnRecAll');
-  if(!btn) return;
-  const anyRec = VKEYS.some(k=>voiceData[k].recState === 'recording');
-  btn.classList.toggle('on', anyRec);
-  btn.innerHTML = anyRec ? '\u25A0 KEEP TAKE' : '\u25CF REC ALL';
-}
-
-function toggleRecordAll(){
-  if(!playing){ log('Engage first, then REC ALL.','wrn'); return; }
-  const recording = VKEYS.filter(k=>voiceData[k].recState === 'recording');
-  if(recording.length){
-    // Commit every armed voice's last bar in one move.
-    recording.forEach(k=>endRecording(k));
-    updateRecAllBtn();
-    return;
-  }
-  // Arm all loaded voices (or all four if nothing's loaded yet), then pop ONE
-  // performance picker. Broadcast (in the swatch handler) drives the rest.
-  const loaded = VKEYS.filter(k=>voiceData[k].sampler && voiceData[k].sampler.loaded);
-  const targets = loaded.length ? loaded : VKEYS.slice();
-  targets.forEach(k=>armRecord(k));
-  updateRecAllBtn();
-  try{ $('swatch-'+targets[0]).click(); }catch(e){}
-  log(`Recording ${targets.length} voices together — ride any swatch, all armed voices follow. REC ALL again to keep the bar.`,'inf');
-}
-
-// ============================================================
-// LOOP SCHEDULING
-// ============================================================
-function scheduleLoop(){
-  if(loopHandle !== null){
-    Tone.Transport.clear(loopHandle);
-    loopHandle = null;
-  }
-  pulseIndex = 0;
-  const pulseInterval = 60 / (bpm * pulseRate);
-  loopHandle = Tone.Transport.scheduleRepeat(time=>{
-    const idx = pulseIndex % barLength;
-    if(scanSpeed > 0){
-      VKEYS.forEach(k=>{ voiceData[k].hue = (voiceData[k].hue + scanSpeed) % 360; });
+  draw(ctx){
+    if(this.settled)return;
+    ctx.fillStyle=`rgba(${this.r},${this.g},${this.b},${this.alpha})`;
+    if(Math.hypot(this.vx,this.vy)>0.8){
+      ctx.lineWidth=this.radius*1.7;ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(this.x-this.vx*2.2,this.y-this.vy*2.2);
+      ctx.lineTo(this.x,this.y);
+      ctx.strokeStyle=ctx.fillStyle;
+      ctx.stroke();
+    }else{
+      ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);ctx.fill();
     }
-
-    // Rolling capture: every pulse overwrites its own slot with the live
-    // hue, so the buffer always holds the most recent full bar performed.
-    VKEYS.forEach(k=>{
-      const v = voiceData[k];
-      if(v.recState === 'recording' && v._recBuf){
-        v._recBuf[idx] = {h:v.hue, s:v.sat, v:v.val};
-        if(scanSpeed > 0) v._recTouched = true;  // scan drift is motion too
-      }
-    });
-
-    triggerPulse(idx, time);
-    Tone.Draw.schedule(()=>{
-      markPulse(idx);
-      VKEYS.forEach(k=>{
-        const v = voiceData[k];
-        $('note-'+k).textContent = voiceReadout(k, idx);
-        // Never overwrite the swatch a user is actively dragging mid-take;
-        // otherwise reflect whatever colour is actually driving this voice.
-        if(v.recState !== 'recording' && (scanSpeed > 0 || (v.colorSeq && v.colorSeq.length))){
-          const c = (v.colorSeq && v.colorSeq.length) ? v.colorSeq[idx % v.colorSeq.length] : null;
-          const h = c ? c.h : v.hue, s = c ? c.s : v.sat, val = c ? c.v : v.val;
-          const sw = $('swatch-'+k);
-          if(sw) sw.value = hsvHex(h, s, val);
-        }
-      });
-    }, time);
-    pulseIndex++;
-  }, pulseInterval);
-}
-
-// ============================================================
-// MAIN LOOP
-// ============================================================
-async function engage(){
-  if(!ready) initAudio();
-  await Tone.start();
-  playing=true;
-  Tone.Transport.bpm.value = bpm;
-
-  $('dot').classList.add('live');
-  $('stxt').textContent = 'LIVE';
-  $('btnPlay').classList.add('on');
-  $('btnPlay').textContent = '■ STOP';
-
-  scheduleLoop();
-  Tone.Transport.start();
-  log('Engaged · triggering voices on the clock.','ok');
-}
-
-function stop(){
-  playing=false;
-  if(loopHandle !== null){
-    Tone.Transport.clear(loopHandle);
-    loopHandle=null;
   }
-  Tone.Transport.stop();
-  pulseIndex = 0;
-  const prevNow = document.querySelector('.barcell.now');
-  if(prevNow) prevNow.classList.remove('now');
-  VKEYS.forEach(k=>{
-    const v = voiceData[k];
-    if(v.sampler && v.sampler.triggerRelease){
-      try{ v.sampler.triggerRelease(); }catch(e){}
+}
+function spawnSplat(px,py,angle,spd,group){
+  if(particles.length>=maxParticles)return;
+  const seed=Math.floor(px)*3.1+Math.floor(py)*7.7+Math.floor(angle*57.3)*13.9;
+  const cnt=Math.min(18,Math.floor(spd*2));
+  if(cnt<2)return;
+  const refSize=Math.min(52,spd*34);
+  for(let i=0;i<cnt;i++){
+    const a=angle+dG(seed,i*2.39996)*0.12;
+    const v=spd*1.6*(0.4+dU(seed+1.3,i)*0.5);
+    const rad=Math.max(0.35,(0.15+dU(seed+2.6,i)*0.85)*refSize*0.08);
+    if(particles.length<maxParticles){
+      particles.push(new InkParticle(px,py,Math.cos(a)*v,Math.sin(a)*v,rad,inkR,inkG,inkB,seed+i));
     }
-    // Stopping the engine mid-take keeps the last performed bar rather
-    // than trashing it — same rule as tapping ● REC.
-    if(v.recState === 'recording') endRecording(k);
-  });
-  $('dot').classList.remove('live');
-  $('stxt').textContent = 'IDLE';
-  $('btnPlay').classList.remove('on');
-  $('btnPlay').textContent = '▶ ENGAGE';
-  log('Stopped.','inf');
-}
-
-function log(msg, type='inf'){
-  $('log').innerHTML = msg;
-}
-
-// ============================================================
-// UI BUILD
-// ============================================================
-function buildVoiceUI(){
-  const container = $('voicesContainer');
-  VKEYS.forEach(k=>{
-    const v = VOICES[k];
-    const color = getComputedStyle(document.documentElement).getPropertyValue(v.color).trim();
-    const el = document.createElement('div');
-    el.className = 'voice';
-    el.style.borderColor = color;
-    el.innerHTML = `
-      <div class="vhead">
-        <input type="color" class="swatch" id="swatch-${k}" value="${v.hex}">
-        <span class="vname" style="color:${color}">${v.label}</span>
-        <input type="range" class="sld" id="vol-${k}" min="0" max="1" step="0.02" value="1" style="color:${color}">
-        <span class="intval" id="volval-${k}" style="color:${color}">100%</span>
-        <span class="vnote" id="note-${k}" style="color:${color}">${voiceReadout(k)}</span>
-      </div>
-      <div class="vrow">
-        <button class="loadbtn" id="load-${k}">LOAD</button>
-        <span class="vsrc" id="src-${k}">no sample</span>
-        <button class="recbtn" id="rec-${k}" style="color:${color}">REC</button>
-      </div>
-      <div class="interval-ctrl">
-        <label class="intlbl" style="color:${color}">OFFSET</label>
-        <input type="range" class="sld" id="int-${k}" min="-24" max="24" step="1" value="0" style="color:${color}">
-        <span class="intval" id="intval-${k}" style="color:${color}">+0</span>
-      </div>
-      <div class="interval-ctrl">
-        <label class="intlbl" style="color:${color}">HITS/BAR</label>
-        <input type="range" class="sld" id="hits-${k}" min="1" max="16" step="1" value="${voiceData[k].hitsPerBar}" style="color:${color}">
-        <span class="intval" id="hitsval-${k}" style="color:${color}">${voiceData[k].hitsPerBar}</span>
-      </div>
-      <div class="interval-ctrl">
-        <label class="intlbl" style="color:${color}">SKIP %</label>
-        <input type="range" class="sld" id="skip-${k}" min="0" max="100" step="5" value="${voiceData[k].skipProb}" style="color:${color}">
-        <span class="intval" id="skipval-${k}" style="color:${color}">${voiceData[k].skipProb}%</span>
-      </div>
-      <div class="interval-ctrl">
-        <label class="intlbl" style="color:${color}">SEND</label>
-        <input type="range" class="sld" id="send-${k}" min="0" max="1" step="0.02" value="${voiceData[k].sendAmt}" style="color:${color}">
-        <span class="intval" id="sendval-${k}" style="color:${color}">${Math.round(voiceData[k].sendAmt*100)}%</span>
-      </div>
-      <input type="file" id="file-${k}" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.flac,.aif,.aiff" hidden>
-    `;
-    container.appendChild(el);
-
-    $('swatch-'+k).addEventListener('input', e=>{
-      const {hue,sat,val} = hexHSV(e.target.value);
-      // If more than one voice is armed, one gesture drives the whole group:
-      // whatever swatch you ride writes into every recording voice at once.
-      const rec = VKEYS.filter(x=>voiceData[x].recState === 'recording');
-      const targets = (rec.length > 1) ? Array.from(new Set([k, ...rec])) : [k];
-      targets.forEach(x=>{
-        const vv = voiceData[x];
-        vv.hue = hue; vv.sat = sat; vv.val = val;
-        if(vv.recState === 'recording') vv._recTouched = true;
-        $('note-'+x).textContent = voiceReadout(x);
-        if(x !== k){ const sw = $('swatch-'+x); if(sw) sw.value = e.target.value; }
-      });
-      rebuildPattern();
-    });
-
-    $('vol-'+k).addEventListener('input', e=>{
-      const val = parseFloat(e.target.value);
-      $('volval-'+k).textContent = Math.round(val*100)+'%';
-      if(voiceData[k].vol) voiceData[k].vol.gain.rampTo(val, 0.03);
-    });
-
-    $('rec-'+k).addEventListener('click', ()=> toggleRecord(k));
-
-    $('load-'+k).addEventListener('click', ()=>{
-      // Wake the context inside this click, not after the picker returns —
-      // the tap on LOAD is the trusted gesture; the change event that
-      // follows the native picker isn't guaranteed to still count as one.
-      if(typeof Tone !== 'undefined'){ Tone.start().catch(()=>{}); }
-      const fi = $('file-'+k);
-      fi.value = '';
-      fi.click();
-    });
-    $('file-'+k).addEventListener('change', e=>{
-      const f = e.target.files && e.target.files[0];
-      e.target.value = '';  // reset now too, so picking the SAME file again still fires change
-      if(f) loadSample(k, f);
-    });
-    $('int-'+k).addEventListener('input', e=>{
-      const val = parseInt(e.target.value);
-      voiceData[k].interval = val;
-      $('intval-'+k).textContent = (val>=0?'+':'')+val;
-      $('note-'+k).textContent = voiceReadout(k);
-    });
-    $('hits-'+k).addEventListener('input', e=>{
-      const val = parseInt(e.target.value);
-      voiceData[k].hitsPerBar = val;
-      $('hitsval-'+k).textContent = val;
-      rebuildPattern();
-    });
-    $('skip-'+k).addEventListener('input', e=>{
-      const val = parseInt(e.target.value);
-      voiceData[k].skipProb = val;
-      $('skipval-'+k).textContent = val+'%';
-    });
-    $('send-'+k).addEventListener('input', e=>{
-      const val = parseFloat(e.target.value);
-      voiceData[k].sendAmt = val;
-      $('sendval-'+k).textContent = Math.round(val*100)+'%';
-      if(voiceData[k].send) voiceData[k].send.gain.rampTo(val, 0.03);
-    });
-  });
-}
-
-// ============================================================
-// WINDOW LOAD
-// ============================================================
-window.addEventListener('load', ()=>{
-  buildVoiceUI();
-  rebuildPattern();
-
-  $('sBarLen').addEventListener('input', e=>{
-    barLength = parseInt(e.target.value);
-    $('vBarLen').textContent = barLength;
-    rebuildPattern();
-  });
-
-  $('sBPM').addEventListener('input', e=>{
-    bpm = parseInt(e.target.value);
-    $('vBPM').textContent = bpm;
-    if(playing){
-      Tone.Transport.bpm.value = bpm;
-      scheduleLoop();
-    }
-  });
-
-  $('sRate').addEventListener('input', e=>{
-    pulseRate = parseFloat(e.target.value);
-    $('vRate').textContent = pulseRate;
-    if(playing) scheduleLoop();
-  });
-
-  $('sGain').addEventListener('input', e=>{
-    const g = parseFloat(e.target.value);
-    $('vGain').textContent = g.toFixed(2);
-    if(master) master.gain.rampTo(g, 0.03);
-  });
-
-  $('sScan').addEventListener('input', e=>{
-    scanSpeed = parseFloat(e.target.value);
-    $('vScan').textContent = scanSpeed > 0 ? scanSpeed.toFixed(1)+' °/pulse' : 'OFF';
-  });
-
-  $('btnScale').addEventListener('click', ()=>{
-    scaleLock = !scaleLock;
-    $('vScale').textContent = scaleLock ? 'SCALE · C' : 'CHROMATIC';
-    $('btnScale').innerHTML = scaleLock ? '\u25C6 SCALE LOCK (C)' : '\u25C7 CHROMATIC STACK';
-    VKEYS.forEach(k=> $('note-'+k).textContent = voiceReadout(k));
-    rebuildPattern();
-  });
-
-  $('btnRecAll').addEventListener('click', toggleRecordAll);
-
-  $('btnPlay').addEventListener('click', ()=>{
-    playing ? stop() : engage();
-  });
-
-  if(typeof Tone === 'undefined'){
-    log('Tone.js failed to load.','wrn');
-  }else{
-    initAudio();
   }
+}
+
+// ── BRUSH & INPUT ───────────────────────────────────────────
+let pts=[], smSpd=0, paintGroup=0, drawing=false, prevPt=null, lastMoveT=0;
+let undoStack=[];
+function snapUndo(){
+  undoStack.push(inkCanvas.toDataURL());
+  if(undoStack.length>20)undoStack.shift();
+}
+function performUndo(){
+  if(!undoStack.length)return;
+  const img=new Image();
+  img.onload=()=>{ inkCtx.clearRect(0,0,canvas.width,canvas.height); inkCtx.drawImage(img,0,0); };
+  img.src=undoStack.pop();
+}
+
+function paintSegment(p1,p2){
+  const dist=Math.hypot(p2.x-p1.x,p2.y-p1.y)||1;
+  const dt=Math.min(40,Math.max(8,(p2.t-p1.t)||16));
+  const raw=dist/dt;
+  const prev=smSpd||raw;
+  smSpd=prev+(raw-prev)*0.5; // speedSmooth=0.5
+  const stepDist=0.8;
+  const steps=Math.max(1,Math.floor(dist/stepDist));
+  for(let i=0;i<=steps;i++){
+    const t=i/steps;
+    const x=p1.x+(p2.x-p1.x)*t, y=p1.y+(p2.y-p1.y)*t;
+    const spd=prev+(smSpd-prev)*t;
+    const range=BRUSH_R-MIN_BRUSH_R;
+    const w=MIN_BRUSH_R+range/(1.0+spd*4.5);
+    const opacity=0.15+0.75/(1.0+spd*7.0);
+    const inkA=opacity*inkLoad;
+    if(inkA>0.01){
+      inkCtx.beginPath();
+      inkCtx.arc(x,y,w,0,Math.PI*2);
+      inkCtx.fillStyle=`rgba(${inkR},${inkG},${inkB},${inkA*0.28})`;
+      inkCtx.fill();
+    }
+    const waterAmt=WATER.deposit*waterLoad*opacity*Math.min(1.6,Math.max(0.35,w/14));
+    depositWet(x,y,waterAmt,w,paintGroup,paintGroup,false);
+    waterLoad=Math.max(0,waterLoad-BRUSH_DRAIN_PER_STEP);
+    inkLoad=Math.max(0,inkLoad-BRUSH_DRAIN_PER_STEP);
+  }
+}
+
+function startStroke(x,y,t){
+  snapUndo();
+  smSpd=0;
+  paintGroup=++groupSeq;
+  pts=[{x,y,t}];
+  drawing=true;
+}
+function extendStroke(x,y,t){
+  if(!drawing)return;
+  const last=pts[pts.length-1];
+  if(Math.hypot(x-last.x,y-last.y)<1.0)return;
+  const p={x,y,t};
+  pts.push(p);
+  paintSegment(last,p);
+}
+function endStroke(tEnd){
+  if(!drawing)return;
+  drawing=false;
+  if(pts.length>=3){
+    const last=pts[pts.length-1];
+    const prev=pts[Math.max(0,pts.length-8)];
+    const dx=last.x-prev.x,dy=last.y-prev.y;
+    const dt=(last.t-prev.t)||1;
+    const spd=Math.hypot(dx,dy)/dt*15;
+    const ang=Math.atan2(dy,dx);
+    if(spd>1.2){
+      spawnSplat(last.x,last.y,ang,spd,0);
+      ripple={x:last.x,y:last.y,radius:1,opacity:0.56};
+    }
+  }
+  pts=[];
+  updateUIIndicators();
+}
+
+function lingeringDeposit(){
+  if(drawing&&pts.length){
+    const p=pts[pts.length-1];
+    depositWet(p.x,p.y,WATER.linger,9,paintGroup,paintGroup,false);
+  }
+}
+
+// ── EVENT HANDLERS ──────────────────────────────────────────
+function updateUIIndicators(){
+  document.getElementById('inkFill').style.height=(inkLoad*100)+'%';
+  document.getElementById('waterFill').style.height=(waterLoad*100)+'%';
+}
+let groupSeq=0;
+canvas.addEventListener('pointerdown',e=>{
+  if(!e.isPrimary||e.target!==canvas)return;
+  e.preventDefault();
+  try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+  lastMoveT=e.timeStamp;
+  startStroke(e.clientX,e.clientY,e.timeStamp);
 });
+canvas.addEventListener('pointermove',e=>{
+  if(!drawing||!e.isPrimary)return;
+  const list=(e.getCoalescedEvents&&e.getCoalescedEvents().length)?e.getCoalescedEvents():[e];
+  const t1=e.timeStamp,t0=lastMoveT||(t1-16);
+  const step=Math.max(0,(t1-t0)/list.length);
+  for(let k=0;k<list.length;k++){
+    const ev=list[k];
+    extendStroke(ev.clientX,ev.clientY,t0+step*(k+1));
+  }
+  lastMoveT=t1;
+});
+window.addEventListener('pointerup',()=>{if(drawing)endStroke(performance.now());});
+window.addEventListener('pointercancel',()=>{drawing=false;pts=[];});
+
+// ── UI CONTROLS ─────────────────────────────────────────────
+document.querySelectorAll('.swatch').forEach(sw=>{
+  sw.addEventListener('click',()=>{
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    setInk(sw.dataset.ink);
+    inkLoad=Math.min(1.0,inkLoad+0.5);
+    updateUIIndicators();
+  });
+});
+document.querySelectorAll('.size').forEach(sz=>{
+  sz.addEventListener('click',()=>{
+    document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
+    sz.classList.add('active');
+    BRUSH_R=parseFloat(sz.dataset.r);
+  });
+});
+document.getElementById('dipInk').addEventListener('click',()=>{inkLoad=1;updateUIIndicators();});
+document.getElementById('dipWater').addEventListener('click',()=>{waterLoad=1;updateUIIndicators();});
+document.querySelectorAll('.napZone').forEach(zone=>{
+  zone.addEventListener('pointerdown',()=>zone.classList.add('pressed'));
+  zone.addEventListener('pointerup',()=>zone.classList.remove('pressed'));
+  zone.addEventListener('pointerleave',()=>zone.classList.remove('pressed'));
+  zone.addEventListener('click',()=>{
+    const type=zone.dataset.drain;
+    if(type==='ink'||type==='both')inkLoad=Math.max(0,inkLoad-0.4);
+    if(type==='water'||type==='both')waterLoad=Math.max(0,waterLoad-0.4);
+    updateUIIndicators();
+  });
+});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  inkCtx.clearRect(0,0,canvas.width,canvas.height);
+  drips=[];blooms=[];particles=[];
+  if(wetSat){wetSat.fill(0);wetGrp.fill(0);}
+  undoStack=[];
+});
+document.getElementById('btnUndo').addEventListener('click',performUndo);
+document.getElementById('btnTilt').addEventListener('click',()=>{
+  armGyro(ok=>{
+    alert(ok?'Gyro active – drips will flow with tilt':'No gyro available');
+  });
+});
+
+// ── RESIZE ──────────────────────────────────────────────────
+function resize(){
+  const keep=document.createElement('canvas');
+  keep.width=inkCanvas.width;keep.height=inkCanvas.height;
+  keep.getContext('2d').drawImage(inkCanvas,0,0);
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  inkCanvas.width=canvas.width;inkCanvas.height=canvas.height;
+  inkCtx.drawImage(keep,0,0);
+  generatePaper();
+  setupWaterGrid();
+}
+window.addEventListener('resize',resize);
+
+// ── RENDER LOOP ─────────────────────────────────────────────
+const bleedCanvas=document.createElement('canvas');
+const bleedCtx=bleedCanvas.getContext('2d');
+function frame(now){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(paperCanvas,0,0);
+
+  // bleed halo
+  bleedCanvas.width=canvas.width;bleedCanvas.height=canvas.height;
+  bleedCtx.clearRect(0,0,bleedCanvas.width,bleedCanvas.height);
+  bleedCtx.save();
+  bleedCtx.filter='blur(6px)';
+  bleedCtx.globalAlpha=0.05;
+  bleedCtx.drawImage(inkCanvas,0,0);
+  bleedCtx.restore();
+  ctx.globalCompositeOperation='multiply';
+  ctx.drawImage(bleedCanvas,0,0);
+  ctx.globalCompositeOperation='source-over';
+
+  // permanent ink
+  ctx.drawImage(inkCanvas,0,0);
+
+  // airborne particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.update();
+    p.draw(ctx);
+    if(p.settled)particles.splice(i,1);
+  }
+
+  // drips & blooms
+  for(let i=drips.length-1;i>=0;i--){
+    drips[i].step();
+    if(!drips[i].alive)drips.splice(i,1);
+  }
+  for(let i=blooms.length-1;i>=0;i--){
+    blooms[i].step(now);
+    if(!blooms[i].alive)blooms.splice(i,1);
+  }
+
+  decayWet(now);
+  lingeringDeposit();
+
+  if(ripple){
+    ctx.strokeStyle=`rgba(${inkR},${inkG},${inkB},${ripple.opacity})`;
+    ctx.lineWidth=0.7;
+    ctx.beginPath();ctx.arc(ripple.x,ripple.y,ripple.radius,0,Math.PI*2);ctx.stroke();
+    ripple.radius+=2.6;ripple.opacity-=0.018;
+    if(ripple.opacity<=0)ripple=null;
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── TRAY TOGGLE ─────────────────────────────────────────────
+const tray=document.getElementById('tray');
+let trayOpen=true;
+canvas.addEventListener('dblclick',()=>{tray.classList.toggle('visible');trayOpen=!trayOpen;});
+let tapCount=0,tapTimer=null;
+canvas.addEventListener('touchstart',e=>{
+  tapCount++;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{tapCount=0;},320);
+  if(tapCount>=2){tapCount=0;tray.classList.toggle('visible');trayOpen=!trayOpen;}
+},{passive:true});
+
+// ── INIT ────────────────────────────────────────────────────
+function init(){
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  inkCanvas.width=canvas.width;inkCanvas.height=canvas.height;
+  generatePaper();
+  setupWaterGrid();
+  updateUIIndicators();
+  requestAnimationFrame(frame);
+}
+init();
 </script>
 </body>
 </html>
