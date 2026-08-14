@@ -2,703 +2,616 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>watercolor — slow depletion + splatter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pendulum v4</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Share+Tech+Mono&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
-    width:100%; height:100dvh;
-    background:#c8c3b8;
-    overflow:hidden; user-select:none; -webkit-user-select:none; touch-action:none;
+    width: 100%; height: 100%;
+    background: #070b12;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
-  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
-  #tray {
-    position:fixed; left:0; right:0; bottom:0;
-    padding:11px 14px calc(20px + env(safe-area-inset-bottom));
-    background:rgba(38,34,30,0.88);
-    backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
-    border-top:1px solid rgba(255,255,255,0.12);
-    display:flex; flex-direction:column; gap:9px;
-    transform:translateY(100%); opacity:0;
-    transition:transform 0.35s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease;
-    z-index:10; touch-action:none;
+  #header {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 10px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #ece5d2;
+    z-index: 10;
+    display: flex; justify-content: space-between; align-items: center;
+    pointer-events: none; opacity: 0.5;
   }
-  #tray.visible { transform:translateY(0); opacity:1; }
-
-  #swatchRow {
-    display:flex; align-items:center; gap:7px; overflow-x:auto; padding:2px 0 1px;
-    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  canvas { display: block; width: 100%; height: 100%; }
+  #panel-toggle {
+    position: fixed; bottom: 12px; left: 50%;
+    transform: translateX(-50%); z-index: 20;
+    background: #ece5d210; border: 1px solid #ece5d225;
+    color: #ece5d2; font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; padding: 6px 20px; border-radius: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   }
-  #swatchRow::-webkit-scrollbar { display:none; }
+  #panel {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 15;
+    background: #0c1119ee; border-top: 1px solid #ece5d215;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transform: translateY(100%); transition: transform 0.3s ease;
+    max-height: 40vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 16px 16px 60px;
+  }
+  #panel.open { transform: translateY(0); }
+  .cg { margin-bottom: 14px; }
+  .cg-t {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    color: #ece5d240; text-transform: uppercase;
+    letter-spacing: 1.5px; margin-bottom: 8px;
+  }
+  .cr { display: flex; align-items: center; margin-bottom: 6px; gap: 10px; }
+  .cl {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: #ece5d2a0; min-width: 72px; flex-shrink: 0;
+  }
+  .cv {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: #ece5d2; min-width: 42px; text-align: right; flex-shrink: 0;
+  }
+  input[type="range"] {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 3px; background: #ece5d220; border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: #ece5d2; border: none; cursor: pointer;
+  }
   .swatch {
-    width:28px; height:28px; border-radius:50%; flex-shrink:0;
-    border:2px solid rgba(255,255,255,0.2);
-    transition:transform 0.16s, border-color 0.16s;
-    touch-action:none; cursor:pointer;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid #ece5d230; flex-shrink: 0;
   }
-  .swatch.active {
-    border-color:rgba(255,255,255,0.9); transform:scale(1.2);
-    box-shadow:0 0 10px rgba(255,255,255,0.25);
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn {
+    flex: 1; background: #ece5d210; border: 1px solid #ece5d220;
+    color: #ece5d2a0; font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; padding: 8px; border-radius: 4px; cursor: pointer;
   }
-
-  .rowDiv { width:1px; height:24px; align-self:center; margin:0 4px; background:rgba(255,255,255,0.14); flex-shrink:0; }
-
-  .size {
-    width:30px; height:30px; border-radius:50%; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
-    border:2px solid rgba(255,255,255,0.14);
-    transition:transform 0.16s, border-color 0.16s; touch-action:none; cursor:pointer;
-  }
-  .size i { display:block; border-radius:50%; background:rgba(255,255,255,0.55); }
-  .size.active { border-color:rgba(255,255,255,0.85); transform:scale(1.12); }
-  .size.active i { background:rgba(255,255,255,0.92); }
-
-  .ghost-btn {
-    font-family:'Courier New', monospace; font-size:0.68rem; letter-spacing:0.1em;
-    color:rgba(255,255,255,0.5); background:none; border:none; cursor:pointer;
-    padding:6px 4px; transition:color 0.18s; white-space:nowrap;
-  }
-  .ghost-btn:hover { color:rgba(255,255,255,0.9); }
-
-  #resetBtn {
-    width:30px; height:30px; border-radius:50%; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
-    border:2px solid rgba(216,138,118,0.55);
-    background:rgba(120,58,48,0.2); color:rgba(242,204,194,0.9);
-    font-size:16px; line-height:1; touch-action:none; cursor:pointer;
-  }
-
-  #dipRow { display:flex; gap:8px; height:65px; }
-  .dip, #napkin {
-    flex:1; border-radius:7px; position:relative; overflow:hidden;
-    display:flex; align-items:center; justify-content:center;
-    font-family:'Courier New', monospace;
-    font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase;
-    touch-action:none; cursor:pointer;
-  }
-  .dip .fill {
-    position:absolute; left:0; bottom:0; right:0; height:100%;
-    background:rgba(255,255,255,0.25); transition:height 0.1s linear; pointer-events:none;
-  }
-  .dip span, #napkin .napLabel { position:relative; z-index:2; pointer-events:none; font-weight:bold; }
-  #dipInk   { background:#141210; color:#eee; border:1px solid rgba(255,255,255,0.15); }
-  #dipWater { background:#2e5d8a; color:#eaf2fa; border:1px solid rgba(255,255,255,0.15); }
-
-  #napkin { background:#e8e4d8; color:#5a5348; border:1px solid rgba(0,0,0,0.1); }
-  .napZones { position:absolute; inset:0; display:flex; z-index:1; }
-  .napZone { flex:1; touch-action:none; cursor:pointer; }
-  .napZone.mid { border-left:1px solid rgba(90,83,72,0.18); border-right:1px solid rgba(90,83,72,0.18); }
-  .napZone.pressed { background:rgba(90,83,72,0.25); }
+  .btn:active { background: #ece5d225; }
+  .node3-only { transition: opacity 0.2s; }
+  .node3-only.hidden { opacity: 0.25; pointer-events: none; }
 </style>
 </head>
 <body>
-
+<div id="header"><span>PENDULUM — v4</span></div>
 <canvas id="c"></canvas>
+<button id="panel-toggle">CONTROLS</button>
 
-<div id="tray" class="visible">
-  <div id="swatchRow">
-    <div class="swatch active" style="background:#2a2420" data-ink="#2a2420"></div>
-    <div class="swatch" style="background:#3d1f14" data-ink="#3d1f14"></div>
-    <div class="swatch" style="background:#141c24" data-ink="#141c24"></div>
-    <div class="swatch" style="background:#14281D" data-ink="#14281D"></div>
-    <div class="swatch" style="background:#4a1a1a" data-ink="#4a1a1a"></div>
-    <div class="rowDiv"></div>
-    <div class="size" data-r="3"><i style="width:4px;height:4px"></i></div>
-    <div class="size active" data-r="8"><i style="width:9px;height:9px"></i></div>
-    <div class="size" data-r="16"><i style="width:15px;height:15px"></i></div>
-    <div class="rowDiv"></div>
-    <button class="ghost-btn" id="btnUndo">undo</button>
-    <button id="resetBtn" title="Reset Canvas">↺</button>
-  </div>
-
-  <div id="dipRow">
-    <div class="dip" id="dipInk"><div class="fill" id="inkFill"></div><span>ink</span></div>
-    <div id="napkin">
-      <div class="napZones">
-        <div class="napZone" data-drain="ink" title="Drain Ink"></div>
-        <div class="napZone mid" data-drain="both" title="Dab Both"></div>
-        <div class="napZone" data-drain="water" title="Drain Water"></div>
-      </div>
-      <span class="napLabel">napkin</span>
+<div id="panel">
+  <div class="cg">
+    <div class="cg-t">Mode</div>
+    <div class="cr">
+      <span class="cl">Nodes</span>
+      <input type="range" id="sl-nodes" min="2" max="3" step="1" value="3">
+      <span class="cv" id="vl-nodes">3</span>
     </div>
-    <div class="dip" id="dipWater"><div class="fill" id="waterFill"></div><span>water</span></div>
   </div>
 
-  <div style="display:flex; justify-content:flex-end;">
-    <button class="ghost-btn" id="btnTilt">tilt</button>
+  <div class="cg">
+    <div class="cg-t">Physics</div>
+    <div class="cr">
+      <span class="cl">Gravity</span>
+      <input type="range" id="sl-gravity" min="0" max="50" step="0.1" value="9.81">
+      <span class="cv" id="vl-gravity">9.8</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Friction</span>
+      <input type="range" id="sl-friction" min="0.990" max="1.000" step="0.0001" value="0.9997">
+      <span class="cv" id="vl-friction">0.3</span>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-t">Rods</div>
+    <div class="cr">
+      <span class="cl">Rod 1</span>
+      <input type="range" id="sl-L0" min="20" max="220" step="1" value="0">
+      <span class="cv" id="vl-L0">—</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Rod 2</span>
+      <input type="range" id="sl-L1" min="20" max="220" step="1" value="0">
+      <span class="cv" id="vl-L1">—</span>
+    </div>
+    <div class="cr node3-only">
+      <span class="cl">Rod 3</span>
+      <input type="range" id="sl-L2" min="20" max="220" step="1" value="0">
+      <span class="cv" id="vl-L2">—</span>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-t">Bobs</div>
+    <div class="cr">
+      <span class="cl">Mass 1</span>
+      <input type="range" id="sl-m0" min="0.2" max="12" step="0.1" value="2.0">
+      <span class="cv" id="vl-m0">2.0</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Mass 2</span>
+      <input type="range" id="sl-m1" min="0.2" max="12" step="0.1" value="1.5">
+      <span class="cv" id="vl-m1">1.5</span>
+    </div>
+    <div class="cr node3-only">
+      <span class="cl">Mass 3</span>
+      <input type="range" id="sl-m2" min="0.2" max="12" step="0.1" value="1.0">
+      <span class="cv" id="vl-m2">1.0</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Size 1</span>
+      <input type="range" id="sl-r0" min="1" max="30" step="1" value="1">
+      <span class="cv" id="vl-r0">1</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Size 2</span>
+      <input type="range" id="sl-r1" min="1" max="30" step="1" value="1">
+      <span class="cv" id="vl-r1">1</span>
+    </div>
+    <div class="cr node3-only">
+      <span class="cl">Size 3</span>
+      <input type="range" id="sl-r2" min="1" max="30" step="1" value="1">
+      <span class="cv" id="vl-r2">1</span>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-t">Trail — Last Bob</div>
+    <div class="cr">
+      <span class="cl">Show</span>
+      <input type="range" id="sl-tA-on" min="0" max="1" step="1" value="1">
+      <span class="cv" id="vl-tA-on">ON</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Hue</span>
+      <input type="range" id="sl-tA-hue" min="0" max="360" step="1" value="30">
+      <span class="cv" id="vl-tA-hue">30°</span>
+      <div class="swatch" id="sw-tA"></div>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-t">Trail — Mid Bob</div>
+    <div class="cr">
+      <span class="cl">Show</span>
+      <input type="range" id="sl-tB-on" min="0" max="1" step="1" value="1">
+      <span class="cv" id="vl-tB-on">ON</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Hue</span>
+      <input type="range" id="sl-tB-hue" min="0" max="360" step="1" value="220">
+      <span class="cv" id="vl-tB-hue">220°</span>
+      <div class="swatch" id="sw-tB"></div>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-t">Trail — Shared</div>
+    <div class="cr">
+      <span class="cl">Length</span>
+      <input type="range" id="sl-tLen" min="50" max="4000" step="50" value="1200">
+      <span class="cv" id="vl-tLen">1200</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Width</span>
+      <input type="range" id="sl-tW" min="0.3" max="4" step="0.1" value="1.2">
+      <span class="cv" id="vl-tW">1.2</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Sat</span>
+      <input type="range" id="sl-tSat" min="0" max="100" step="1" value="55">
+      <span class="cv" id="vl-tSat">55%</span>
+    </div>
+    <div class="cr">
+      <span class="cl">Light</span>
+      <input type="range" id="sl-tLgt" min="20" max="90" step="1" value="65">
+      <span class="cv" id="vl-tLgt">65%</span>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="btn-clear">CLEAR TRAILS</button>
+    <button class="btn" id="btn-reset">RESET ALL</button>
   </div>
 </div>
 
 <script>
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-
-// ── TUNABLES ────────────────────────────────────────────────
-const DRY_SECONDS = 10.0;
-const BRUSH_DRAIN_PER_STEP = 0.000001;
-const MAX_BRUSH_R = 8;           // default max radius (changed by size buttons)
-const MIN_BRUSH_R = 1;
-let BRUSH_R = MAX_BRUSH_R;       // current max brush radius
-
-let waterLoad = 0.8;
-let inkLoad = 0.95;
-
-let inkR = 0x2a, inkG = 0x24, inkB = 0x20;   // sumi default
-
-function setInk(hex) {
-  inkR = parseInt(hex.slice(1,3),16);
-  inkG = parseInt(hex.slice(3,5),16);
-  inkB = parseInt(hex.slice(5,7),16);
-}
-
-// ── DETERMINISTIC RANDOM ────────────────────────────────────
-const R2A=0.7548776662466927,R2B=0.5698402909980532,GOLD=Math.PI*(3-Math.sqrt(5));
-const fract=x=>x-Math.floor(x);
-const dU=(a,b)=>fract(Math.sin(a*127.1+b*311.7)*43758.5453123);
-const dS=(a,b)=>dU(a,b)*21;
-const dG=(a,b)=>(dU(a,b)+dU(a+1.618,b+3.14)+dU(a+2.71,b+1.41)-1.5)*1.15;
-
-// ── PAPER GENERATION (sumi‑e style) ─────────────────────────
-const paperCanvas = document.createElement('canvas');
-const paperCtx = paperCanvas.getContext('2d');
-
-function generatePaper() {
-  const w=canvas.width, h=canvas.height;
-  paperCanvas.width=w; paperCanvas.height=h;
-  paperCtx.clearRect(0,0,w,h);
-  paperCtx.fillStyle='#f4f1ea';
-  paperCtx.fillRect(0,0,w,h);
-
-  const area=w*h;
-  const fiberCount=Math.floor(area/3800);
-  paperCtx.strokeStyle='rgba(55,45,35,0.014)';
-  for(let i=1;i<=fiberCount;i++){
-    const x=fract(i*R2A)*w, y=fract(i*R2B)*h, ang=i*GOLD;
-    const len=25+dU(i,7.3)*110;
-    paperCtx.lineWidth=0.18+dU(i,11.1)*0.65;
-    paperCtx.beginPath();
-    paperCtx.moveTo(x,y);
-    paperCtx.bezierCurveTo(
-      x+Math.cos(ang)*(len/3)+dS(i,1.2)*4, y+Math.sin(ang)*(len/3)+dS(i,2.3)*4,
-      x+Math.cos(ang)*(len*2/3)+dS(i,3.4)*4, y+Math.sin(ang)*(len*2/3)+dS(i,4.5)*4,
-      x+Math.cos(ang)*len, y+Math.sin(ang)*len);
-    paperCtx.stroke();
+(function(){
+  if(location.search.indexOf('debug')!==-1){
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/eruda';
+    s.onload=()=>eruda.init();
+    document.head.appendChild(s);
   }
 
-  const moteCount=Math.floor(area/130);
-  paperCtx.fillStyle='rgba(130,115,95,0.02)';
-  for(let i=1;i<=moteCount;i++){
-    const rx=fract((i+0.5)*R2A)*w, ry=fract((i+0.5)*R2B)*h;
-    paperCtx.beginPath();
-    paperCtx.arc(rx,ry,dU(i,5.5)*1.6,0,Math.PI*2);
-    paperCtx.fill();
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  let W, H, cx, cy, dpr;
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2; cy = H * 0.22;
   }
+  resize();
+  window.addEventListener('resize', resize);
 
-  const grad=paperCtx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.22, w/2,h/2,Math.max(w,h)*0.6);
-  grad.addColorStop(0,'rgba(255,255,255,0)');
-  grad.addColorStop(1,'rgba(170,160,145,0.12)');
-  paperCtx.fillStyle=grad;
-  paperCtx.fillRect(0,0,w,h);
+  const baseLen = () => Math.min(W, H) * 0.14;
 
-  // hanko stamp
-  const size=Math.max(48, Math.min(w,h)*0.06);
-  const sx=w-size-40, sy=h-size-40;
-  paperCtx.save();
-  paperCtx.fillStyle='rgba(160,24,24,0.55)';
-  paperCtx.strokeStyle='rgba(160,24,24,0.55)';
-  paperCtx.lineWidth=size*0.06;
-  const pad=size*0.08;
-  paperCtx.strokeRect(sx+pad,sy+pad,size-pad*2,size-pad*2);
-  paperCtx.font=`bold ${size*0.55}px "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif`;
-  paperCtx.textAlign='center';
-  paperCtx.textBaseline='middle';
-  paperCtx.fillText('像', sx+size/2, sy+size/2+size*0.03);
-  paperCtx.restore();
-}
+  // Params
+  const DEF = {
+    nodes: 3,
+    gravity: 9.81, friction: 0.9997,
+    m: [2.0, 1.5, 1.0],
+    r: [1, 1, 1],
+    tAOn: 1, tAHue: 30,
+    tBOn: 1, tBHue: 220,
+    tLen: 1200, tW: 1.2, tSat: 55, tLgt: 65
+  };
 
-// ── INK CANVAS (permanent strokes + settled splatter) ───────
-const inkCanvas = document.createElement('canvas');
-const inkCtx = inkCanvas.getContext('2d');
-inkCanvas.width=canvas.width; inkCanvas.height=canvas.height;
+  let nodes = 3;
+  let gravity = DEF.gravity, friction = DEF.friction;
+  let mass = [...DEF.m], rad = [...DEF.r], rodLen = [0, 0, 0];
+  let tAOn = DEF.tAOn, tAHue = DEF.tAHue;
+  let tBOn = DEF.tBOn, tBHue = DEF.tBHue;
+  let tLen = DEF.tLen, tW = DEF.tW, tSat = DEF.tSat, tLgt = DEF.tLgt;
 
-// ── WATER TABLE ─────────────────────────────────────────────
-const WATER={
-  cell:1, deposit:10, linger:0.8, drySec:4, bleedAt:0.8, dripAt:.85,
-  bloomCooldown:900, dripMax:999, dripLen:900, dripSpeed:0.8, dripWobble:0,
-  dripSpend:0.75, channelPull:11, channelAt:0.9, sip:0.5, bloomGrow:1100,
-  gravMin:0.34
-};
-let wetW, wetH, wetSat, wetGrp, wetBloomT;
-function setupWaterGrid() {
-  wetW=Math.max(1,Math.ceil(canvas.width/WATER.cell));
-  wetH=Math.max(1,Math.ceil(canvas.height/WATER.cell));
-  wetSat=new Float32Array(wetW*wetH);
-  wetGrp=new Int32Array(wetW*wetH);
-  wetBloomT=new Float64Array(wetW*wetH);
-}
-function cellAt(x,y){
-  const cx=Math.min(wetW-1,Math.max(0,Math.floor(x/WATER.cell)));
-  const cy=Math.min(wetH-1,Math.max(0,Math.floor(y/WATER.cell)));
-  return cy*wetW+cx;
-}
-function depositWet(x,y,amt,wpx,group,surfGroup,quiet){
-  if(!wetSat)return;
-  const i=cellAt(x,y),now=performance.now();
-  const wasWet=wetSat[i];
-  const foreign=wetGrp[i]!==0&&wetGrp[i]!==group;
-  wetSat[i]=Math.min(1.5,wetSat[i]+amt);
-  const s=amt*0.3;
-  const cx=i%wetW;
-  if(cx>0)wetSat[i-1]=Math.min(1.5,wetSat[i-1]+s);
-  if(cx<wetW-1)wetSat[i+1]=Math.min(1.5,wetSat[i+1]+s);
-  if(i-wetW>=0)wetSat[i-wetW]=Math.min(1.5,wetSat[i-wetW]+s);
-  if(i+wetW<wetSat.length)wetSat[i+wetW]=Math.min(1.5,wetSat[i+wetW]+s);
-  wetGrp[i]=group;
-  if(quiet)return;
-  if(foreign&&wasWet>WATER.bleedAt&&now-wetBloomT[i]>WATER.bloomCooldown){
-    wetBloomT[i]=now;
-    spawnBloom(x,y,12+wasWet*30+wpx*0.4,surfGroup);
-  }
-  if(wetSat[i]>=WATER.dripAt){
-    const nb=((cx>0?wetSat[i-1]:0)+(cx<wetW-1?wetSat[i+1]:0)+(i-wetW>=0?wetSat[i-wetW]:0)+(i+wetW<wetSat.length?wetSat[i+wetW]:0))/4;
-    const soak=Math.min(1,wetSat[i]*0.55+nb*0.6);
-    wetSat[i]-=0.6;
-    if(grav.mag>WATER.gravMin){
-      spawnDrip(x,y,wpx,surfGroup,soak);
-    }else if(now-wetBloomT[i]>WATER.bloomCooldown){
-      wetBloomT[i]=now;
-      spawnBloom(x,y,16+wasWet*26+wpx*0.5,surfGroup);
+  function initLengths() {
+    const b = baseLen();
+    rodLen = [b, b, b];
+    for (let i = 0; i < 3; i++) {
+      document.getElementById('sl-L' + i).value = Math.round(b);
+      document.getElementById('vl-L' + i).textContent = Math.round(b);
     }
   }
-}
-function decayWet(now){
-  if(!wetSat)return;
-  const dt=Math.min(120,now-(wetLastT||now));
-  wetLastT=now;
-  const d=dt/(WATER.drySec*1000);
-  for(let i=0;i<wetSat.length;i++){
-    if(wetSat[i]>0){
-      wetSat[i]-=d;
-      if(wetSat[i]<=0){wetSat[i]=0;wetGrp[i]=0;}
+  initLengths();
+
+  // State: [θ0, ω0, θ1, ω1, θ2, ω2]
+  let state = [Math.PI * 0.5, 0, Math.PI * 0.7, 0, Math.PI * 0.9, 0];
+
+  // Dual trails
+  let trailA = []; // last bob
+  let trailB = []; // middle bob (bob index 1 in 3-mode, bob index 0 in... no — "mid" means second-to-last)
+
+  // Panel
+  const panelEl = document.getElementById('panel');
+  const toggleBtn = document.getElementById('panel-toggle');
+  let panelOpen = false;
+  toggleBtn.addEventListener('click', () => {
+    panelOpen = !panelOpen;
+    panelEl.classList.toggle('open', panelOpen);
+    toggleBtn.textContent = panelOpen ? 'CLOSE' : 'CONTROLS';
+  });
+
+  // Wire helpers
+  function sl(id) { return document.getElementById('sl-' + id); }
+  function vl(id) { return document.getElementById('vl-' + id); }
+
+  function bindSlider(id, get, set, fmt) {
+    const s = sl(id), v = vl(id);
+    s.addEventListener('input', () => { set(parseFloat(s.value)); v.textContent = fmt(parseFloat(s.value)); updateSwatches(); });
+    v.textContent = fmt(parseFloat(s.value));
+  }
+
+  // Node toggle
+  const node3Els = document.querySelectorAll('.node3-only');
+  function setNodeMode(n) {
+    nodes = n;
+    node3Els.forEach(el => el.classList.toggle('hidden', n === 2));
+    trailA = []; trailB = [];
+  }
+  bindSlider('nodes', () => nodes, v => { setNodeMode(v); }, v => v.toFixed(0));
+  setNodeMode(3);
+
+  // Physics
+  bindSlider('gravity', () => gravity, v => { gravity = v; }, v => v.toFixed(1));
+  bindSlider('friction', () => friction, v => { friction = v; }, v => ((1 - v) * 1000).toFixed(1));
+
+  // Rods
+  for (let i = 0; i < 3; i++) {
+    ((idx) => {
+      sl('L' + idx).addEventListener('input', () => {
+        rodLen[idx] = parseFloat(sl('L' + idx).value);
+        vl('L' + idx).textContent = Math.round(rodLen[idx]);
+      });
+    })(i);
+  }
+
+  // Mass / size
+  for (let i = 0; i < 3; i++) {
+    ((idx) => {
+      bindSlider('m' + idx, () => mass[idx], v => { mass[idx] = v; }, v => v.toFixed(1));
+      bindSlider('r' + idx, () => rad[idx], v => { rad[idx] = v; }, v => v.toFixed(0));
+    })(i);
+  }
+
+  // Trails
+  bindSlider('tA-on', () => tAOn, v => { tAOn = v; if (v < 0.5) trailA = []; }, v => v > 0.5 ? 'ON' : 'OFF');
+  bindSlider('tA-hue', () => tAHue, v => { tAHue = v; }, v => v.toFixed(0) + '°');
+  bindSlider('tB-on', () => tBOn, v => { tBOn = v; if (v < 0.5) trailB = []; }, v => v > 0.5 ? 'ON' : 'OFF');
+  bindSlider('tB-hue', () => tBHue, v => { tBHue = v; }, v => v.toFixed(0) + '°');
+  bindSlider('tLen', () => tLen, v => { tLen = v; }, v => v.toFixed(0));
+  bindSlider('tW', () => tW, v => { tW = v; }, v => v.toFixed(1));
+  bindSlider('tSat', () => tSat, v => { tSat = v; }, v => v.toFixed(0) + '%');
+  bindSlider('tLgt', () => tLgt, v => { tLgt = v; }, v => v.toFixed(0) + '%');
+
+  function updateSwatches() {
+    document.getElementById('sw-tA').style.background = `hsl(${tAHue},${tSat}%,${tLgt}%)`;
+    document.getElementById('sw-tB').style.background = `hsl(${tBHue},${tSat}%,${tLgt}%)`;
+  }
+  updateSwatches();
+
+  // Buttons
+  document.getElementById('btn-clear').addEventListener('click', () => { trailA = []; trailB = []; });
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    gravity = DEF.gravity; friction = DEF.friction;
+    mass = [...DEF.m]; rad = [...DEF.r];
+    tAOn = DEF.tAOn; tAHue = DEF.tAHue;
+    tBOn = DEF.tBOn; tBHue = DEF.tBHue;
+    tLen = DEF.tLen; tW = DEF.tW; tSat = DEF.tSat; tLgt = DEF.tLgt;
+    nodes = DEF.nodes;
+    initLengths();
+    state = [Math.PI * 0.5, 0, Math.PI * 0.7, 0, Math.PI * 0.9, 0];
+    trailA = []; trailB = [];
+    setNodeMode(DEF.nodes);
+    // Sync all sliders
+    sl('nodes').value = nodes;
+    sl('gravity').value = gravity; sl('friction').value = friction;
+    for (let i = 0; i < 3; i++) {
+      sl('m' + i).value = mass[i]; sl('r' + i).value = rad[i];
     }
-  }
-}
-let wetLastT=0;
-let drips=[], blooms=[];
-class Bloom{
-  constructor(x,y,size,group){
-    this.x=x;this.y=y;this.size=Math.min(64,size);this.group=group;
-    const seed=Math.floor(x)*3.3+Math.floor(y)*8.9;
-    this.p1=dU(seed,4.4)*Math.PI*2;
-    this.p2=dU(seed,5.5)*Math.PI*2;
-    this.a1=0.12+dU(seed,6.6)*0.1;
-    this.a2=0.06+dU(seed,7.7)*0.08;
-    this.born=performance.now();
-    this.dur=WATER.bloomGrow*50;
-    this.rPrev=0;
-    this.alive=true;
-  }
-  edge(r){
-    const bx=this.x,by=this.y;
-    inkCtx.beginPath();
-    const STEPS=26;
-    for(let i=0;i<=STEPS;i++){
-      const t=(i/STEPS)*Math.PI*2;
-      const rr=r*(1+Math.sin(t*3+this.p1)*this.a1+Math.sin(t*5+this.p2)*this.a2);
-      const px=bx+Math.cos(t)*rr,py=by+Math.sin(t)*rr;
-      i?inkCtx.lineTo(px,py):inkCtx.moveTo(px,py);
+    sl('tA-on').value = tAOn; sl('tA-hue').value = tAHue;
+    sl('tB-on').value = tBOn; sl('tB-hue').value = tBHue;
+    sl('tLen').value = tLen; sl('tW').value = tW;
+    sl('tSat').value = tSat; sl('tLgt').value = tLgt;
+    document.querySelectorAll('#panel input[type=range]').forEach(s => s.dispatchEvent(new Event('input')));
+    updateSwatches();
+  });
+
+  // Prevent panel touch bleed
+  panelEl.addEventListener('touchstart', e => e.stopPropagation(), { passive: false });
+  panelEl.addEventListener('touchmove', e => e.stopPropagation(), { passive: false });
+  toggleBtn.addEventListener('touchstart', e => e.stopPropagation(), { passive: false });
+
+  // ---- N-pendulum solver (mass matrix) ----
+  function derivs(s, n) {
+    const theta = [], omega = [];
+    for (let i = 0; i < n; i++) { theta.push(s[i*2]); omega.push(s[i*2+1]); }
+
+    const tailMass = new Array(n);
+    tailMass[n - 1] = mass[n - 1];
+    for (let i = n - 2; i >= 0; i--) tailMass[i] = tailMass[i + 1] + mass[i];
+
+    // Build mass matrix and force vector
+    if (n === 2) {
+      // 2x2 direct solve
+      const c01 = Math.cos(theta[0] - theta[1]);
+      const s01 = Math.sin(theta[0] - theta[1]);
+      const M00 = tailMass[0] * rodLen[0] * rodLen[0];
+      const M01 = tailMass[1] * rodLen[0] * rodLen[1] * c01;
+      const M10 = M01;
+      const M11 = tailMass[1] * rodLen[1] * rodLen[1];
+      const F0 = -tailMass[1] * rodLen[0] * rodLen[1] * omega[1]*omega[1] * s01
+                 - gravity * rodLen[0] * tailMass[0] * Math.sin(theta[0]);
+      const F1 = tailMass[1] * rodLen[0] * rodLen[1] * omega[0]*omega[0] * Math.sin(theta[1] - theta[0])
+                 - gravity * rodLen[1] * tailMass[1] * Math.sin(theta[1]);
+      const det = M00 * M11 - M01 * M10;
+      if (Math.abs(det) < 1e-12) return [omega[0], 0, omega[1], 0];
+      const a0 = (F0 * M11 - F1 * M01) / det;
+      const a1 = (M00 * F1 - M10 * F0) / det;
+      return [omega[0], a0, omega[1], a1];
     }
-    inkCtx.closePath();
-  }
-  step(now){
-    const p=Math.min(1,(now-this.born)/this.dur);
-    const r=this.size*(Math.pow(p,1.8)*0.95);
-    if(r-this.rPrev<0.2&&p<1)return;
-    const mid=Math.max(0.3,(r+this.rPrev)/2);
-    const a=0.0001*(1-(mid/this.size)*0.68);
-    inkCtx.strokeStyle=`rgba(${inkR},${inkG},${inkB},${Math.max(0.008,a)})`;
-    inkCtx.lineWidth=Math.max(0.7,(r-this.rPrev)*0.8);
-    this.edge(mid);
-    inkCtx.stroke();
-    this.rPrev=r;
-    if(p>=1)this.alive=false;
-  }
-}
-function spawnBloom(x,y,size,group){
-  if(blooms.length>=12)return;
-  blooms.push(new Bloom(x,y,size,group));
-}
-class Drip{
-  constructor(x,y,water,w,group,maxDist,cap){
-    this.x=x;this.y=y;this.water=water;this.w=w;this.group=group;
-    this.maxDist=maxDist;this.cap=cap;this.dist=0;this.alive=true;
-    this.locked=false;this.lockX=x;this.lockY=y;this.lockDir={x:0,y:1};
-  }
-  step(){
-    const m=Math.max(grav.mag,0.05);
-    const sp=WATER.dripSpeed*(0.3+0.65*this.water)*m;
-    let gx=grav.x/m, gy=grav.y/m;
-    const nextX=this.x+gx*sp, nextY=this.y+gy*sp;
-    const nextCell=cellAt(nextX,nextY);
-    const nextWet=wetSat[nextCell];
-    if(nextWet>WATER.channelAt&&!this.locked){
-      this.locked=true;this.lockX=nextX;this.lockY=nextY;this.lockDir={x:gx,y:gy};
-    }
-    if(this.locked){
-      const lockCell=cellAt(this.lockX,this.lockY);
-      const lockWet=wetSat[lockCell];
-      if(nextWet>lockWet*1.3&&nextWet>WATER.channelAt){
-        this.lockDir={x:gx,y:gy};
+
+    // 3x3
+    const M = [], F = [];
+    for (let i = 0; i < 3; i++) {
+      M[i] = [];
+      for (let j = 0; j < 3; j++) {
+        const k0 = Math.max(i, j);
+        M[i][j] = tailMass[k0] * rodLen[i] * rodLen[j] * Math.cos(theta[i] - theta[j]);
       }
-      gx=this.lockDir.x;gy=this.lockDir.y;
+      let fi = 0;
+      for (let j = 0; j < 3; j++) {
+        if (j === i) continue;
+        const k0 = Math.max(i, j);
+        fi -= tailMass[k0] * rodLen[i] * rodLen[j] * omega[j]*omega[j] * Math.sin(theta[i] - theta[j]);
+      }
+      fi -= gravity * rodLen[i] * tailMass[i] * Math.sin(theta[i]);
+      F[i] = fi;
     }
-    const wob=Math.sin(this.dist*0.12+this.x*7.3)*WATER.dripWobble;
-    const px=this.x,py=this.y;
-    this.x+=(gx-gy*wob)*sp;this.y+=(gy+gx*wob)*sp;
-    this.dist+=sp;
-    const wNow=Math.max(0.3,this.w*Math.pow(Math.max(0,this.water),0.6));
-    inkCtx.strokeStyle=`rgba(${inkR},${inkG},${inkB},${this.cap*(0.5+0.4*this.water)})`;
-    inkCtx.lineWidth=wNow;
-    inkCtx.lineCap='round';
-    inkCtx.beginPath();inkCtx.moveTo(px,py);inkCtx.lineTo(this.x,this.y);inkCtx.stroke();
-    depositWet(this.x,this.y,0.000001,wNow,this.group,this.group,true);
-    this.water-=WATER.dripSpend;
-    const out=this.x<0||this.x>canvas.width||this.y<0||this.y>canvas.height;
-    if(this.water<=0.08||this.dist>=this.maxDist||out){
-      inkCtx.fillStyle=`rgba(${inkR},${inkG},${inkB},${this.cap*0.85})`;
-      inkCtx.beginPath();inkCtx.arc(this.x,this.y,wNow*1.15,0,Math.PI*2);inkCtx.fill();
-      this.alive=false;
-    }
-  }
-}
-function spawnDrip(x,y,wpx,group,soak=0.7){
-  if(drips.length>=WATER.dripMax)return;
-  const seed=Math.floor(x)*5.7+Math.floor(y)*9.1;
-  const water=soak*(0.7+dU(seed,3.1)*0.3);
-  const maxDist=WATER.dripLen*(0.25+soak*soak*0.95);
-  drips.push(new Drip(x,y,water,Math.max(1.1,wpx*0.14),group,maxDist,curInkAlpha||0.5));
-}
 
-// ── GRAVITY (gyro) ──────────────────────────────────────────
-let grav={x:0,y:0.55,mag:0.55},gyroLive=false;
-function armGyro(done){
-  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
-    DeviceOrientationEvent.requestPermission()
-      .then(state=>done(state==='granted'))
-      .catch(()=>done(false));
-  }else{
-    setTimeout(()=>done(gyroLive),300);
+    const det = M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])
+              - M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])
+              + M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]);
+    if (Math.abs(det) < 1e-12) return [omega[0],0,omega[1],0,omega[2],0];
+    const id = 1/det;
+    const a0 = (F[0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1]) - M[0][1]*(F[1]*M[2][2]-M[1][2]*F[2]) + M[0][2]*(F[1]*M[2][1]-M[1][1]*F[2]))*id;
+    const a1 = (M[0][0]*(F[1]*M[2][2]-M[1][2]*F[2]) - F[0]*(M[1][0]*M[2][2]-M[1][2]*M[2][0]) + M[0][2]*(M[1][0]*F[2]-F[1]*M[2][0]))*id;
+    const a2 = (M[0][0]*(M[1][1]*F[2]-F[1]*M[2][1]) - M[0][1]*(M[1][0]*F[2]-F[1]*M[2][0]) + F[0]*(M[1][0]*M[2][1]-M[1][1]*M[2][0]))*id;
+    return [omega[0],a0,omega[1],a1,omega[2],a2];
   }
-}
-window.addEventListener('deviceorientation',e=>{
-  if(e.beta===null||e.gamma===null)return;
-  gyroLive=true;
-  const b=e.beta*Math.PI/180,g=e.gamma*Math.PI/180;
-  const ang=(((screen.orientation&&screen.orientation.angle)??window.orientation)||0)*Math.PI/180;
-  const ca=Math.cos(ang),sa=Math.sin(ang);
-  const rx=Math.sin(g)*ca+Math.sin(b)*sa;
-  const ry=Math.sin(b)*ca-Math.sin(g)*sa;
-  const m=Math.min(1,Math.hypot(rx,ry));
-  grav.x+=(rx-grav.x)*0.12;grav.y+=(ry-grav.y)*0.12;grav.mag+=(m-grav.mag)*0.12;
-});
 
-// ── SPLATTER & PARTICLES ────────────────────────────────────
-let particles=[],ripple=null,curInkAlpha=0.8;
-const maxParticles=500;
-class InkParticle{
-  constructor(x,y,vx,vy,radius,r,g,b,id){
-    this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.radius=radius;
-    this.r=r;this.g=g;this.b=b;this.id=id;this.alpha=0.88;
-    this.friction=0.9;this.gravity=0;this.decay=0.0002+dU(id,9.4)*0.0001;
-    this.settled=false;
+  function rk4Step(s, dt, n) {
+    const len = n * 2;
+    const k1 = derivs(s, n);
+    const s2 = []; for (let i = 0; i < len; i++) s2[i] = s[i] + k1[i] * dt * 0.5;
+    const k2 = derivs(s2, n);
+    const s3 = []; for (let i = 0; i < len; i++) s3[i] = s[i] + k2[i] * dt * 0.5;
+    const k3 = derivs(s3, n);
+    const s4 = []; for (let i = 0; i < len; i++) s4[i] = s[i] + k3[i] * dt;
+    const k4 = derivs(s4, n);
+    const out = [];
+    for (let i = 0; i < len; i++) out[i] = s[i] + (dt/6)*(k1[i]+2*k2[i]+2*k3[i]+k4[i]);
+    return out;
   }
-  update(){
-    if(this.settled)return;
-    this.x+=this.vx;this.y+=this.vy;
-    this.vx*=this.friction;this.vy*=this.friction;this.vy+=this.gravity;
-    this.alpha-=this.decay;
-    const spd=Math.hypot(this.vx,this.vy);
-    if(this.alpha<=0.03||spd<0.06){
-      this.settled=true;
-      inkCtx.globalAlpha=Math.max(0.01,this.alpha*0.9);
-      inkCtx.fillStyle=`rgb(${this.r},${this.g},${this.b})`;
-      inkCtx.beginPath();
-      inkCtx.arc(this.x,this.y,this.radius*1.5,0,Math.PI*2);
-      inkCtx.fill();
-      inkCtx.globalAlpha=1;
+
+  function getPositions(s, n) {
+    let px = cx, py = cy;
+    const pos = [];
+    for (let i = 0; i < n; i++) {
+      px += rodLen[i] * Math.sin(s[i*2]);
+      py += rodLen[i] * Math.cos(s[i*2]);
+      pos.push({ x: px, y: py });
+    }
+    return pos;
+  }
+
+  // Dragging
+  let dragging = null, dragHistory = [];
+  function pointerPos(e) {
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX, y: t.clientY };
+  }
+  function hitTest(px, py, n) {
+    const pos = getPositions(state, n);
+    for (let i = n - 1; i >= 0; i--) {
+      if (Math.hypot(px - pos[i].x, py - pos[i].y) < 40) return i;
+    }
+    return null;
+  }
+  function onDown(e) {
+    if (panelOpen) return;
+    e.preventDefault();
+    const p = pointerPos(e);
+    const hit = hitTest(p.x, p.y, nodes);
+    if (hit !== null) {
+      dragging = hit;
+      dragHistory = [{ x: p.x, y: p.y, t: performance.now() }];
     }
   }
-  draw(ctx){
-    if(this.settled)return;
-    ctx.fillStyle=`rgba(${this.r},${this.g},${this.b},${this.alpha})`;
-    if(Math.hypot(this.vx,this.vy)>0.8){
-      ctx.lineWidth=this.radius*1.7;ctx.lineCap='round';
+  function onMove(e) {
+    if (dragging === null) return;
+    e.preventDefault();
+    const p = pointerPos(e);
+    dragHistory.push({ x: p.x, y: p.y, t: performance.now() });
+    if (dragHistory.length > 6) dragHistory.shift();
+    // Pivot for this bob
+    let pivX = cx, pivY = cy;
+    for (let i = 0; i < dragging; i++) {
+      pivX += rodLen[i] * Math.sin(state[i*2]);
+      pivY += rodLen[i] * Math.cos(state[i*2]);
+    }
+    state[dragging*2] = Math.atan2(p.x - pivX, p.y - pivY);
+    state[dragging*2+1] = 0;
+    for (let i = dragging+1; i < 3; i++) state[i*2+1] = 0;
+  }
+  function onUp(e) {
+    if (dragging === null) return;
+    e.preventDefault();
+    if (dragHistory.length >= 2) {
+      const last = dragHistory[dragHistory.length - 1];
+      const prev = dragHistory[Math.max(0, dragHistory.length - 3)];
+      const dt = (last.t - prev.t) / 1000;
+      if (dt > 0.001 && dt < 0.3) {
+        const vx = (last.x - prev.x) / dt;
+        const vy = (last.y - prev.y) / dt;
+        const a = state[dragging*2];
+        state[dragging*2+1] = (vx * Math.cos(a) - vy * Math.sin(a)) / rodLen[dragging];
+      }
+    }
+    dragging = null; dragHistory = [];
+  }
+  canvas.addEventListener('touchstart', onDown, { passive: false });
+  canvas.addEventListener('touchmove', onMove, { passive: false });
+  canvas.addEventListener('touchend', onUp, { passive: false });
+  canvas.addEventListener('mousedown', onDown);
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('mouseup', onUp);
+
+  // Render
+  const dtPhys = 1/120;
+  let acc = 0, lastT = performance.now();
+
+  function drawTrail(arr, hue) {
+    if (arr.length < 2) return;
+    for (let i = 1; i < arr.length; i++) {
+      const alpha = (i / arr.length) * 0.65;
       ctx.beginPath();
-      ctx.moveTo(this.x-this.vx*2.2,this.y-this.vy*2.2);
-      ctx.lineTo(this.x,this.y);
-      ctx.strokeStyle=ctx.fillStyle;
+      ctx.moveTo(arr[i-1].x, arr[i-1].y);
+      ctx.lineTo(arr[i].x, arr[i].y);
+      ctx.strokeStyle = `hsla(${hue},${tSat}%,${tLgt}%,${alpha})`;
+      ctx.lineWidth = tW;
       ctx.stroke();
-    }else{
-      ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);ctx.fill();
     }
   }
-}
-function spawnSplat(px,py,angle,spd,group){
-  if(particles.length>=maxParticles)return;
-  const seed=Math.floor(px)*3.1+Math.floor(py)*7.7+Math.floor(angle*57.3)*13.9;
-  const cnt=Math.min(18,Math.floor(spd*2));
-  if(cnt<2)return;
-  const refSize=Math.min(52,spd*34);
-  for(let i=0;i<cnt;i++){
-    const a=angle+dG(seed,i*2.39996)*0.12;
-    const v=spd*1.6*(0.4+dU(seed+1.3,i)*0.5);
-    const rad=Math.max(0.35,(0.15+dU(seed+2.6,i)*0.85)*refSize*0.08);
-    if(particles.length<maxParticles){
-      particles.push(new InkParticle(px,py,Math.cos(a)*v,Math.sin(a)*v,rad,inkR,inkG,inkB,seed+i));
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    let el = (now - lastT) / 1000;
+    lastT = now;
+    if (el > 0.1) el = 0.1;
+    acc += el;
+
+    const n = nodes;
+    while (acc >= dtPhys) {
+      if (dragging === null) {
+        const stepped = rk4Step(state, dtPhys, n);
+        for (let i = 0; i < n*2; i++) state[i] = stepped[i];
+        for (let i = 0; i < n; i++) state[i*2+1] *= friction;
+      }
+      acc -= dtPhys;
     }
-  }
-}
 
-// ── BRUSH & INPUT ───────────────────────────────────────────
-let pts=[], smSpd=0, paintGroup=0, drawing=false, prevPt=null, lastMoveT=0;
-let undoStack=[];
-function snapUndo(){
-  undoStack.push(inkCanvas.toDataURL());
-  if(undoStack.length>20)undoStack.shift();
-}
-function performUndo(){
-  if(!undoStack.length)return;
-  const img=new Image();
-  img.onload=()=>{ inkCtx.clearRect(0,0,canvas.width,canvas.height); inkCtx.drawImage(img,0,0); };
-  img.src=undoStack.pop();
-}
+    const pos = getPositions(state, n);
 
-function paintSegment(p1,p2){
-  const dist=Math.hypot(p2.x-p1.x,p2.y-p1.y)||1;
-  const dt=Math.min(40,Math.max(8,(p2.t-p1.t)||16));
-  const raw=dist/dt;
-  const prev=smSpd||raw;
-  smSpd=prev+(raw-prev)*0.5; // speedSmooth=0.5
-  const stepDist=0.8;
-  const steps=Math.max(1,Math.floor(dist/stepDist));
-  for(let i=0;i<=steps;i++){
-    const t=i/steps;
-    const x=p1.x+(p2.x-p1.x)*t, y=p1.y+(p2.y-p1.y)*t;
-    const spd=prev+(smSpd-prev)*t;
-    const range=BRUSH_R-MIN_BRUSH_R;
-    const w=MIN_BRUSH_R+range/(1.0+spd*4.5);
-    const opacity=0.15+0.75/(1.0+spd*7.0);
-    const inkA=opacity*inkLoad;
-    if(inkA>0.01){
-      inkCtx.beginPath();
-      inkCtx.arc(x,y,w,0,Math.PI*2);
-      inkCtx.fillStyle=`rgba(${inkR},${inkG},${inkB},${inkA*0.28})`;
-      inkCtx.fill();
+    // Record trails
+    // Trail A = last bob, Trail B = second-to-last (mid bob)
+    const lastIdx = n - 1;
+    const midIdx = n >= 2 ? n - 2 : -1;
+
+    if (tAOn > 0.5) {
+      trailA.push({ x: pos[lastIdx].x, y: pos[lastIdx].y });
+      while (trailA.length > tLen) trailA.shift();
     }
-    const waterAmt=WATER.deposit*waterLoad*opacity*Math.min(1.6,Math.max(0.35,w/14));
-    depositWet(x,y,waterAmt,w,paintGroup,paintGroup,false);
-    waterLoad=Math.max(0,waterLoad-BRUSH_DRAIN_PER_STEP);
-    inkLoad=Math.max(0,inkLoad-BRUSH_DRAIN_PER_STEP);
-  }
-}
-
-function startStroke(x,y,t){
-  snapUndo();
-  smSpd=0;
-  paintGroup=++groupSeq;
-  pts=[{x,y,t}];
-  drawing=true;
-}
-function extendStroke(x,y,t){
-  if(!drawing)return;
-  const last=pts[pts.length-1];
-  if(Math.hypot(x-last.x,y-last.y)<1.0)return;
-  const p={x,y,t};
-  pts.push(p);
-  paintSegment(last,p);
-}
-function endStroke(tEnd){
-  if(!drawing)return;
-  drawing=false;
-  if(pts.length>=3){
-    const last=pts[pts.length-1];
-    const prev=pts[Math.max(0,pts.length-8)];
-    const dx=last.x-prev.x,dy=last.y-prev.y;
-    const dt=(last.t-prev.t)||1;
-    const spd=Math.hypot(dx,dy)/dt*15;
-    const ang=Math.atan2(dy,dx);
-    if(spd>1.2){
-      spawnSplat(last.x,last.y,ang,spd,0);
-      ripple={x:last.x,y:last.y,radius:1,opacity:0.56};
+    if (tBOn > 0.5 && midIdx >= 0) {
+      trailB.push({ x: pos[midIdx].x, y: pos[midIdx].y });
+      while (trailB.length > tLen) trailB.shift();
     }
-  }
-  pts=[];
-  updateUIIndicators();
-}
 
-function lingeringDeposit(){
-  if(drawing&&pts.length){
-    const p=pts[pts.length-1];
-    depositWet(p.x,p.y,WATER.linger,9,paintGroup,paintGroup,false);
-  }
-}
+    ctx.clearRect(0, 0, W, H);
 
-// ── EVENT HANDLERS ──────────────────────────────────────────
-function updateUIIndicators(){
-  document.getElementById('inkFill').style.height=(inkLoad*100)+'%';
-  document.getElementById('waterFill').style.height=(waterLoad*100)+'%';
-}
-let groupSeq=0;
-canvas.addEventListener('pointerdown',e=>{
-  if(!e.isPrimary||e.target!==canvas)return;
-  e.preventDefault();
-  try{canvas.setPointerCapture(e.pointerId);}catch(_){}
-  lastMoveT=e.timeStamp;
-  startStroke(e.clientX,e.clientY,e.timeStamp);
-});
-canvas.addEventListener('pointermove',e=>{
-  if(!drawing||!e.isPrimary)return;
-  const list=(e.getCoalescedEvents&&e.getCoalescedEvents().length)?e.getCoalescedEvents():[e];
-  const t1=e.timeStamp,t0=lastMoveT||(t1-16);
-  const step=Math.max(0,(t1-t0)/list.length);
-  for(let k=0;k<list.length;k++){
-    const ev=list[k];
-    extendStroke(ev.clientX,ev.clientY,t0+step*(k+1));
-  }
-  lastMoveT=t1;
-});
-window.addEventListener('pointerup',()=>{if(drawing)endStroke(performance.now());});
-window.addEventListener('pointercancel',()=>{drawing=false;pts=[];});
+    // Draw trails
+    if (tBOn > 0.5) drawTrail(trailB, tBHue);
+    if (tAOn > 0.5) drawTrail(trailA, tAHue);
 
-// ── UI CONTROLS ─────────────────────────────────────────────
-document.querySelectorAll('.swatch').forEach(sw=>{
-  sw.addEventListener('click',()=>{
-    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
-    sw.classList.add('active');
-    setInk(sw.dataset.ink);
-    inkLoad=Math.min(1.0,inkLoad+0.5);
-    updateUIIndicators();
-  });
-});
-document.querySelectorAll('.size').forEach(sz=>{
-  sz.addEventListener('click',()=>{
-    document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
-    sz.classList.add('active');
-    BRUSH_R=parseFloat(sz.dataset.r);
-  });
-});
-document.getElementById('dipInk').addEventListener('click',()=>{inkLoad=1;updateUIIndicators();});
-document.getElementById('dipWater').addEventListener('click',()=>{waterLoad=1;updateUIIndicators();});
-document.querySelectorAll('.napZone').forEach(zone=>{
-  zone.addEventListener('pointerdown',()=>zone.classList.add('pressed'));
-  zone.addEventListener('pointerup',()=>zone.classList.remove('pressed'));
-  zone.addEventListener('pointerleave',()=>zone.classList.remove('pressed'));
-  zone.addEventListener('click',()=>{
-    const type=zone.dataset.drain;
-    if(type==='ink'||type==='both')inkLoad=Math.max(0,inkLoad-0.4);
-    if(type==='water'||type==='both')waterLoad=Math.max(0,waterLoad-0.4);
-    updateUIIndicators();
-  });
-});
-document.getElementById('resetBtn').addEventListener('click',()=>{
-  inkCtx.clearRect(0,0,canvas.width,canvas.height);
-  drips=[];blooms=[];particles=[];
-  if(wetSat){wetSat.fill(0);wetGrp.fill(0);}
-  undoStack=[];
-});
-document.getElementById('btnUndo').addEventListener('click',performUndo);
-document.getElementById('btnTilt').addEventListener('click',()=>{
-  armGyro(ok=>{
-    alert(ok?'Gyro active – drips will flow with tilt':'No gyro available');
-  });
-});
+    // Pivot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ece5d2';
+    ctx.fill();
 
-// ── RESIZE ──────────────────────────────────────────────────
-function resize(){
-  const keep=document.createElement('canvas');
-  keep.width=inkCanvas.width;keep.height=inkCanvas.height;
-  keep.getContext('2d').drawImage(inkCanvas,0,0);
-  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
-  inkCanvas.width=canvas.width;inkCanvas.height=canvas.height;
-  inkCtx.drawImage(keep,0,0);
-  generatePaper();
-  setupWaterGrid();
-}
-window.addEventListener('resize',resize);
+    // Rods + bobs
+    let prevX = cx, prevY = cy;
+    for (let i = 0; i < n; i++) {
+      ctx.beginPath();
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(pos[i].x, pos[i].y);
+      ctx.strokeStyle = '#ece5d250';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-// ── RENDER LOOP ─────────────────────────────────────────────
-const bleedCanvas=document.createElement('canvas');
-const bleedCtx=bleedCanvas.getContext('2d');
-function frame(now){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(paperCanvas,0,0);
+      ctx.beginPath();
+      ctx.arc(pos[i].x, pos[i].y, rad[i], 0, Math.PI * 2);
+      ctx.fillStyle = dragging === i ? '#fff' : '#ece5d2';
+      ctx.fill();
 
-  // bleed halo
-  bleedCanvas.width=canvas.width;bleedCanvas.height=canvas.height;
-  bleedCtx.clearRect(0,0,bleedCanvas.width,bleedCanvas.height);
-  bleedCtx.save();
-  bleedCtx.filter='blur(6px)';
-  bleedCtx.globalAlpha=0.05;
-  bleedCtx.drawImage(inkCanvas,0,0);
-  bleedCtx.restore();
-  ctx.globalCompositeOperation='multiply';
-  ctx.drawImage(bleedCanvas,0,0);
-  ctx.globalCompositeOperation='source-over';
-
-  // permanent ink
-  ctx.drawImage(inkCanvas,0,0);
-
-  // airborne particles
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];
-    p.update();
-    p.draw(ctx);
-    if(p.settled)particles.splice(i,1);
-  }
-
-  // drips & blooms
-  for(let i=drips.length-1;i>=0;i--){
-    drips[i].step();
-    if(!drips[i].alive)drips.splice(i,1);
-  }
-  for(let i=blooms.length-1;i>=0;i--){
-    blooms[i].step(now);
-    if(!blooms[i].alive)blooms.splice(i,1);
-  }
-
-  decayWet(now);
-  lingeringDeposit();
-
-  if(ripple){
-    ctx.strokeStyle=`rgba(${inkR},${inkG},${inkB},${ripple.opacity})`;
-    ctx.lineWidth=0.7;
-    ctx.beginPath();ctx.arc(ripple.x,ripple.y,ripple.radius,0,Math.PI*2);ctx.stroke();
-    ripple.radius+=2.6;ripple.opacity-=0.018;
-    if(ripple.opacity<=0)ripple=null;
+      prevX = pos[i].x; prevY = pos[i].y;
+    }
   }
   requestAnimationFrame(frame);
-}
-
-// ── TRAY TOGGLE ─────────────────────────────────────────────
-const tray=document.getElementById('tray');
-let trayOpen=true;
-canvas.addEventListener('dblclick',()=>{tray.classList.toggle('visible');trayOpen=!trayOpen;});
-let tapCount=0,tapTimer=null;
-canvas.addEventListener('touchstart',e=>{
-  tapCount++;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{tapCount=0;},320);
-  if(tapCount>=2){tapCount=0;tray.classList.toggle('visible');trayOpen=!trayOpen;}
-},{passive:true});
-
-// ── INIT ────────────────────────────────────────────────────
-function init(){
-  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
-  inkCanvas.width=canvas.width;inkCanvas.height=canvas.height;
-  generatePaper();
-  setupWaterGrid();
-  updateUIIndicators();
-  requestAnimationFrame(frame);
-}
-init();
+})();
 </script>
 </body>
 </html>
